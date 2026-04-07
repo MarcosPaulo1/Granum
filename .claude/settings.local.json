@@ -9,7 +9,14 @@
       "Bash(rmdir gestao-obras:*)",
       "Bash(npm install:*)",
       "Bash(npx shadcn@latest init -y)",
-      "Bash(npx shadcn@latest init --defaults)"
+      "Bash(npx shadcn@latest init --defaults)",
+      "Bash(npx shadcn@latest add input select dialog table badge card tabs toast dropdown-menu command popover separator skeleton sheet form label textarea checkbox radio-group calendar progress sonner tooltip scroll-area avatar switch -y)",
+      "Bash(npx shadcn@latest add input select dialog table badge card tabs dropdown-menu command popover separator skeleton sheet form label textarea checkbox radio-group calendar progress sonner tooltip scroll-area avatar switch -y)",
+      "Bash(npx shadcn@latest add alert-dialog -y)",
+      "Bash(mkdir:*)",
+      "Bash(npm run:*)",
+      "Bash(npm ls:*)",
+      "Bash(node -e ':*)"
     ]
   }
 }
