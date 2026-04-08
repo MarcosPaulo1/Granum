@@ -41,6 +41,7 @@ export default function ObraPainelPage() {
   const [obra, setObra] = useState<Obra | null>(null)
   const [clienteNome, setClienteNome] = useState("")
   const [responsavelNome, setResponsavelNome] = useState("")
+  const [centroCustoNome, setCentroCustoNome] = useState("")
   const [tarefas, setTarefas] = useState<{ id_tarefa: number; nome: string; status: string; percentual_concluido: number }[]>([])
   const [kpis, setKpis] = useState({ planejado: 0, realizado: 0, nTarefas: 0, nTrabalhadores: 0 })
   const [formOpen, setFormOpen] = useState(false)
@@ -59,6 +60,11 @@ export default function ObraPainelPage() {
     if (o.id_responsavel) {
       const { data: resp } = await supabase.from("responsavel").select("nome").eq("id_responsavel", o.id_responsavel).single()
       setResponsavelNome((resp as { nome: string } | null)?.nome ?? "")
+    }
+
+    if (o.id_centro_custo) {
+      const { data: cc } = await supabase.from("centro_custo").select("codigo, nome").eq("id_centro_custo", o.id_centro_custo).single()
+      setCentroCustoNome(cc ? `${(cc as { codigo: string; nome: string }).codigo} - ${(cc as { codigo: string; nome: string }).nome}` : "")
     }
 
     const { data: tarefasData } = await supabase.from("tarefa").select("id_tarefa, nome, status, percentual_concluido").eq("id_obra", id).order("ordem")
@@ -94,7 +100,7 @@ export default function ObraPainelPage() {
       <div className="flex items-start justify-between">
         <div>
           <h1 className="text-2xl font-semibold">{obra.nome}</h1>
-          <p className="text-muted-foreground text-sm">Cliente: {clienteNome} | Responsável: {responsavelNome}</p>
+          <p className="text-muted-foreground text-sm">Cliente: {clienteNome} | Responsável: {responsavelNome}{centroCustoNome && ` | CC: ${centroCustoNome}`}</p>
         </div>
         <div className="flex items-center gap-2">
           <StatusBadge status={obra.status} statusMap={OBRA_STATUS} />
