@@ -84,10 +84,14 @@ export default function ObrasPage() {
   useEffect(() => {
     async function loadObras() {
       const supabase = createClient()
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("obra")
-        .select("id_obra, nome, status, percentual_finalizada, data_inicio_prevista, data_fim_prevista, cliente(nome), responsavel(nome)")
+        .select("id_obra, nome, status, percentual_finalizada, data_inicio_prevista, data_fim_prevista, cliente(nome), responsavel!id_responsavel(nome)")
         .order("created_at", { ascending: false })
+
+      if (error) {
+        console.error("Erro ao carregar obras:", error)
+      }
 
       setObras((data as unknown as ObraRow[]) ?? [])
       setIsLoading(false)
