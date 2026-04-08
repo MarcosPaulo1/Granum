@@ -10,9 +10,14 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { StatusBadge } from "@/components/shared/status-badge"
 import { ProgressBar } from "@/components/shared/progress-bar"
 import { ObraForm } from "@/components/forms/obra-form"
+import { TarefasTab } from "@/components/obra-tabs/tarefas-tab"
+import { EquipeTab } from "@/components/obra-tabs/equipe-tab"
+import { FinanceiroTab } from "@/components/obra-tabs/financeiro-tab"
+import { DocumentosTab } from "@/components/obra-tabs/documentos-tab"
+import { DiariosTab } from "@/components/obra-tabs/diarios-tab"
 import { OBRA_STATUS, TAREFA_STATUS } from "@/lib/constants"
 import { formatBRL, formatDate } from "@/lib/utils/format"
-import { Pencil, ExternalLink } from "lucide-react"
+import { Pencil } from "lucide-react"
 
 interface Obra {
   id_obra: number
@@ -148,33 +153,23 @@ export default function ObraPainelPage() {
         </TabsContent>
 
         <TabsContent value="tarefas" className="mt-4">
-          <Button variant="outline" onClick={() => router.push(`/obras/${obra.id_obra}/tarefas`)}>
-            <ExternalLink className="mr-2 h-4 w-4" /> Abrir cronograma de tarefas
-          </Button>
+          <TarefasTab obraId={obra.id_obra} role={role} />
         </TabsContent>
 
         <TabsContent value="equipe" className="mt-4">
-          <Button variant="outline" onClick={() => router.push(`/obras/${obra.id_obra}/equipe`)}>
-            <ExternalLink className="mr-2 h-4 w-4" /> Abrir escala semanal
-          </Button>
+          <EquipeTab obraId={obra.id_obra} />
         </TabsContent>
 
         <TabsContent value="financeiro" className="mt-4">
-          <Button variant="outline" onClick={() => router.push(`/financeiro/lancamentos?obra=${obra.id_obra}`)}>
-            <ExternalLink className="mr-2 h-4 w-4" /> Ver lançamentos da obra
-          </Button>
+          <FinanceiroTab obraId={obra.id_obra} />
         </TabsContent>
 
         <TabsContent value="documentos" className="mt-4">
-          <Button variant="outline" onClick={() => router.push(`/obras/${obra.id_obra}/documentos`)}>
-            <ExternalLink className="mr-2 h-4 w-4" /> Abrir documentos
-          </Button>
+          <DocumentosTab obraId={obra.id_obra} />
         </TabsContent>
 
         <TabsContent value="diarios" className="mt-4">
-          <Button variant="outline" onClick={() => router.push(`/obras/${obra.id_obra}/diarios`)}>
-            <ExternalLink className="mr-2 h-4 w-4" /> Abrir diários de obra
-          </Button>
+          <DiariosTab obraId={obra.id_obra} role={role} />
         </TabsContent>
       </Tabs>
 
