@@ -37,6 +37,7 @@ interface Props {
 export function ContratoForm({ open, onOpenChange, contrato, onSuccess }: Props) {
   const [trabalhadores, setTrabalhadores] = useState<{ id_trabalhador: number; nome: string }[]>([])
   const [obras, setObras] = useState<{ id_obra: number; nome: string }[]>([])
+  const [optionsLoaded, setOptionsLoaded] = useState(false)
 
   const { register, handleSubmit, reset, setValue, watch, formState: { errors, isSubmitting } } = useForm<FormData>({
     resolver: zodResolver(schema),
@@ -52,7 +53,7 @@ export function ContratoForm({ open, onOpenChange, contrato, onSuccess }: Props)
   })
 
   useEffect(() => {
-    if (!open) return
+    if (!open) { setOptionsLoaded(false); return }
     const supabase = createClient()
     Promise.all([
       supabase.from("trabalhador").select("id_trabalhador, nome").eq("ativo", true).order("nome"),
@@ -60,6 +61,7 @@ export function ContratoForm({ open, onOpenChange, contrato, onSuccess }: Props)
     ]).then(([t, o]) => {
       setTrabalhadores((t.data ?? []) as { id_trabalhador: number; nome: string }[])
       setObras((o.data ?? []) as { id_obra: number; nome: string }[])
+      setOptionsLoaded(true)
     })
   }, [open])
 
@@ -84,16 +86,16 @@ export function ContratoForm({ open, onOpenChange, contrato, onSuccess }: Props)
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           <div>
             <Label>Trabalhador *</Label>
-            <Select value={watch("id_trabalhador")?.toString() || ""} onValueChange={(v) => v && setValue("id_trabalhador", Number(v))}>
-              <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+            <Select value={optionsLoaded ? (watch("id_trabalhador")?.toString() || "") : ""} onValueChange={(v) => v && setValue("id_trabalhador", Number(v))}>
+              <SelectTrigger><SelectValue placeholder={optionsLoaded ? "Selecione" : "Carregando..."} /></SelectTrigger>
               <SelectContent>{trabalhadores.map((t) => <SelectItem key={t.id_trabalhador} value={t.id_trabalhador.toString()}>{t.nome}</SelectItem>)}</SelectContent>
             </Select>
             {errors.id_trabalhador && <p className="text-sm text-red-600 mt-1">{errors.id_trabalhador.message}</p>}
           </div>
           <div>
             <Label>Obra *</Label>
-            <Select value={watch("id_obra")?.toString() || ""} onValueChange={(v) => v && setValue("id_obra", Number(v))}>
-              <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+            <Select value={optionsLoaded ? (watch("id_obra")?.toString() || "") : ""} onValueChange={(v) => v && setValue("id_obra", Number(v))}>
+              <SelectTrigger><SelectValue placeholder={optionsLoaded ? "Selecione" : "Carregando..."} /></SelectTrigger>
               <SelectContent>{obras.map((o) => <SelectItem key={o.id_obra} value={o.id_obra.toString()}>{o.nome}</SelectItem>)}</SelectContent>
             </Select>
             {errors.id_obra && <p className="text-sm text-red-600 mt-1">{errors.id_obra.message}</p>}

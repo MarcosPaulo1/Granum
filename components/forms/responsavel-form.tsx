@@ -41,6 +41,7 @@ interface Props {
 
 export function ResponsavelForm({ open, onOpenChange, responsavel, onSuccess }: Props) {
   const [perfis, setPerfis] = useState<Perfil[]>([])
+  const [optionsLoaded, setOptionsLoaded] = useState(false)
 
   const { register, handleSubmit, reset, setValue, watch, formState: { errors, isSubmitting } } = useForm<FormData>({
     resolver: zodResolver(schema),
@@ -58,12 +59,14 @@ export function ResponsavelForm({ open, onOpenChange, responsavel, onSuccess }: 
   })
 
   useEffect(() => {
+    if (!open) { setOptionsLoaded(false); return }
     async function loadPerfis() {
       const supabase = createClient()
       const { data } = await supabase.from("perfil").select("*").order("nome")
       setPerfis(data ?? [])
+      setOptionsLoaded(true)
     }
-    if (open) loadPerfis()
+    loadPerfis()
   }, [open])
 
   async function onSubmit(data: FormData) {
@@ -101,11 +104,11 @@ export function ResponsavelForm({ open, onOpenChange, responsavel, onSuccess }: 
           <div>
             <Label>Perfil *</Label>
             <Select
-              value={perfilValue ? perfilValue.toString() : ""}
+              value={optionsLoaded ? (perfilValue ? perfilValue.toString() : "") : ""}
               onValueChange={(v) => v && setValue("id_perfil", Number(v))}
             >
               <SelectTrigger>
-                <SelectValue placeholder="Selecione o perfil" />
+                <SelectValue placeholder={optionsLoaded ? "Selecione o perfil" : "Carregando..."} />
               </SelectTrigger>
               <SelectContent>
                 {perfis.map((p) => (

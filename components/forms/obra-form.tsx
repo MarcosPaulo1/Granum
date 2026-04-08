@@ -38,6 +38,7 @@ export function ObraForm({ open, onOpenChange, obra, onSuccess }: Props) {
   const [clientes, setClientes] = useState<{ id_cliente: number; nome: string }[]>([])
   const [centros, setCentros] = useState<{ id_centro_custo: number; codigo: string; nome: string }[]>([])
   const [responsaveis, setResponsaveis] = useState<{ id_responsavel: number; nome: string }[]>([])
+  const [optionsLoaded, setOptionsLoaded] = useState(false)
 
   const { register, handleSubmit, reset, setValue, watch, formState: { errors, isSubmitting } } = useForm<FormData>({
     resolver: zodResolver(schema),
@@ -54,7 +55,7 @@ export function ObraForm({ open, onOpenChange, obra, onSuccess }: Props) {
   })
 
   useEffect(() => {
-    if (!open) return
+    if (!open) { setOptionsLoaded(false); return }
     const supabase = createClient()
     Promise.all([
       supabase.from("cliente").select("id_cliente, nome").order("nome"),
@@ -64,6 +65,7 @@ export function ObraForm({ open, onOpenChange, obra, onSuccess }: Props) {
       setClientes((c.data ?? []) as { id_cliente: number; nome: string }[])
       setCentros((cc.data ?? []) as { id_centro_custo: number; codigo: string; nome: string }[])
       setResponsaveis((r.data ?? []) as { id_responsavel: number; nome: string }[])
+      setOptionsLoaded(true)
     })
   }, [open])
 
@@ -99,8 +101,8 @@ export function ObraForm({ open, onOpenChange, obra, onSuccess }: Props) {
           </div>
           <div>
             <Label>Cliente *</Label>
-            <Select value={watch("id_cliente")?.toString() || ""} onValueChange={(v) => v && setValue("id_cliente", Number(v))}>
-              <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+            <Select value={optionsLoaded ? (watch("id_cliente")?.toString() || "") : ""} onValueChange={(v) => v && setValue("id_cliente", Number(v))}>
+              <SelectTrigger><SelectValue placeholder={optionsLoaded ? "Selecione" : "Carregando..."} /></SelectTrigger>
               <SelectContent>
                 {clientes.map((c) => <SelectItem key={c.id_cliente} value={c.id_cliente.toString()}>{c.nome}</SelectItem>)}
               </SelectContent>
@@ -109,8 +111,8 @@ export function ObraForm({ open, onOpenChange, obra, onSuccess }: Props) {
           </div>
           <div>
             <Label>Centro de custo *</Label>
-            <Select value={watch("id_centro_custo")?.toString() || ""} onValueChange={(v) => v && setValue("id_centro_custo", Number(v))}>
-              <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+            <Select value={optionsLoaded ? (watch("id_centro_custo")?.toString() || "") : ""} onValueChange={(v) => v && setValue("id_centro_custo", Number(v))}>
+              <SelectTrigger><SelectValue placeholder={optionsLoaded ? "Selecione" : "Carregando..."} /></SelectTrigger>
               <SelectContent>
                 {centros.map((c) => <SelectItem key={c.id_centro_custo} value={c.id_centro_custo.toString()}>{c.codigo} - {c.nome}</SelectItem>)}
               </SelectContent>
@@ -119,8 +121,8 @@ export function ObraForm({ open, onOpenChange, obra, onSuccess }: Props) {
           </div>
           <div>
             <Label>Responsável *</Label>
-            <Select value={watch("id_responsavel")?.toString() || ""} onValueChange={(v) => v && setValue("id_responsavel", Number(v))}>
-              <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+            <Select value={optionsLoaded ? (watch("id_responsavel")?.toString() || "") : ""} onValueChange={(v) => v && setValue("id_responsavel", Number(v))}>
+              <SelectTrigger><SelectValue placeholder={optionsLoaded ? "Selecione" : "Carregando..."} /></SelectTrigger>
               <SelectContent>
                 {responsaveis.map((r) => <SelectItem key={r.id_responsavel} value={r.id_responsavel.toString()}>{r.nome}</SelectItem>)}
               </SelectContent>

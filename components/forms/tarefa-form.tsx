@@ -37,6 +37,7 @@ interface Props {
 export function TarefaForm({ open, onOpenChange, obraId, tarefa, onSuccess }: Props) {
   const [etapas, setEtapas] = useState<{ id_etapa: number; nome: string }[]>([])
   const [responsaveis, setResponsaveis] = useState<{ id_responsavel: number; nome: string }[]>([])
+  const [optionsLoaded, setOptionsLoaded] = useState(false)
 
   const { register, handleSubmit, reset, setValue, watch, formState: { errors, isSubmitting } } = useForm<FormData>({
     resolver: zodResolver(schema),
@@ -52,7 +53,7 @@ export function TarefaForm({ open, onOpenChange, obraId, tarefa, onSuccess }: Pr
   })
 
   useEffect(() => {
-    if (!open) return
+    if (!open) { setOptionsLoaded(false); return }
     const supabase = createClient()
     Promise.all([
       supabase.from("etapa").select("id_etapa, nome").order("ordem"),
@@ -60,6 +61,7 @@ export function TarefaForm({ open, onOpenChange, obraId, tarefa, onSuccess }: Pr
     ]).then(([e, r]) => {
       setEtapas((e.data ?? []) as { id_etapa: number; nome: string }[])
       setResponsaveis((r.data ?? []) as { id_responsavel: number; nome: string }[])
+      setOptionsLoaded(true)
     })
   }, [open])
 
@@ -96,8 +98,8 @@ export function TarefaForm({ open, onOpenChange, obraId, tarefa, onSuccess }: Pr
           </div>
           <div>
             <Label>Etapa</Label>
-            <Select value={watch("id_etapa")?.toString() || ""} onValueChange={(v) => v && setValue("id_etapa", Number(v))}>
-              <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+            <Select value={optionsLoaded ? (watch("id_etapa")?.toString() || "") : ""} onValueChange={(v) => v && setValue("id_etapa", Number(v))}>
+              <SelectTrigger><SelectValue placeholder={optionsLoaded ? "Selecione" : "Carregando..."} /></SelectTrigger>
               <SelectContent>
                 {etapas.map((e) => <SelectItem key={e.id_etapa} value={e.id_etapa.toString()}>{e.nome}</SelectItem>)}
               </SelectContent>
@@ -105,8 +107,8 @@ export function TarefaForm({ open, onOpenChange, obraId, tarefa, onSuccess }: Pr
           </div>
           <div>
             <Label>Responsável</Label>
-            <Select value={watch("id_responsavel")?.toString() || ""} onValueChange={(v) => v && setValue("id_responsavel", Number(v))}>
-              <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+            <Select value={optionsLoaded ? (watch("id_responsavel")?.toString() || "") : ""} onValueChange={(v) => v && setValue("id_responsavel", Number(v))}>
+              <SelectTrigger><SelectValue placeholder={optionsLoaded ? "Selecione" : "Carregando..."} /></SelectTrigger>
               <SelectContent>
                 {responsaveis.map((r) => <SelectItem key={r.id_responsavel} value={r.id_responsavel.toString()}>{r.nome}</SelectItem>)}
               </SelectContent>

@@ -51,6 +51,7 @@ export function LancamentoForm({ open, onOpenChange, onSuccess, defaultObraId }:
   const [grupos, setGrupos] = useState<{ id_grupo: number; nome: string }[]>([])
   const [planos, setPlanos] = useState<{ id_plano: number; codigo: string | null; nome: string; analitica: boolean }[]>([])
   const [fornecedores, setFornecedores] = useState<{ id_fornecedor: number; nome: string }[]>([])
+  const [optionsLoaded, setOptionsLoaded] = useState(false)
   const [parcelado, setParcelado] = useState(false)
   const [numParcelas, setNumParcelas] = useState(2)
   const [dataVencimento, setDataVencimento] = useState("")
@@ -64,7 +65,7 @@ export function LancamentoForm({ open, onOpenChange, onSuccess, defaultObraId }:
   const valor = watch("valor")
 
   useEffect(() => {
-    if (!open) return
+    if (!open) { setOptionsLoaded(false); return }
     const supabase = createClient()
     Promise.all([
       supabase.from("obra").select("id_obra, nome").in("status", ["planejamento", "em_andamento"]).order("nome"),
@@ -78,6 +79,7 @@ export function LancamentoForm({ open, onOpenChange, onSuccess, defaultObraId }:
       setGrupos((g.data ?? []) as typeof grupos)
       setPlanos((p.data ?? []) as typeof planos)
       setFornecedores((f.data ?? []) as typeof fornecedores)
+      setOptionsLoaded(true)
     })
   }, [open])
 
@@ -138,16 +140,16 @@ export function LancamentoForm({ open, onOpenChange, onSuccess, defaultObraId }:
           <div className="grid grid-cols-2 gap-4">
             <div>
               <Label>Obra *</Label>
-              <Select value={watch("id_obra")?.toString() || ""} onValueChange={(v) => v && setValue("id_obra", Number(v))}>
-                <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+              <Select value={optionsLoaded ? (watch("id_obra")?.toString() || "") : ""} onValueChange={(v) => v && setValue("id_obra", Number(v))}>
+                <SelectTrigger><SelectValue placeholder={optionsLoaded ? "Selecione" : "Carregando..."} /></SelectTrigger>
                 <SelectContent>{obras.map((o) => <SelectItem key={o.id_obra} value={o.id_obra.toString()}>{o.nome}</SelectItem>)}</SelectContent>
               </Select>
               {errors.id_obra && <p className="text-sm text-red-600 mt-1">{errors.id_obra.message}</p>}
             </div>
             <div>
               <Label>Centro de custo *</Label>
-              <Select value={watch("id_centro_custo")?.toString() || ""} onValueChange={(v) => v && setValue("id_centro_custo", Number(v))}>
-                <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+              <Select value={optionsLoaded ? (watch("id_centro_custo")?.toString() || "") : ""} onValueChange={(v) => v && setValue("id_centro_custo", Number(v))}>
+                <SelectTrigger><SelectValue placeholder={optionsLoaded ? "Selecione" : "Carregando..."} /></SelectTrigger>
                 <SelectContent>{centros.map((c) => <SelectItem key={c.id_centro_custo} value={c.id_centro_custo.toString()}>{c.codigo} - {c.nome}</SelectItem>)}</SelectContent>
               </Select>
               {errors.id_centro_custo && <p className="text-sm text-red-600 mt-1">{errors.id_centro_custo.message}</p>}
