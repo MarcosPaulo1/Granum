@@ -101,7 +101,51 @@ export const DOCUMENTO_TIPO = {
   orcamento: { label: "Orçamento", color: "bg-green-100 text-green-700" },
   relatorio: { label: "Relatório", color: "bg-cyan-100 text-cyan-700" },
   contrato: { label: "Contrato", color: "bg-yellow-100 text-yellow-700" },
+  inspecao: { label: "Inspeção", color: "bg-amber-100 text-amber-700" },
   outro: { label: "Outro", color: "bg-gray-100 text-gray-700" },
+} as const
+
+export const PENDENCIA_STATUS = {
+  aberta: { label: "Aberta", color: "bg-red-100 text-red-700" },
+  em_correcao: { label: "Em correção", color: "bg-yellow-100 text-yellow-700" },
+  resolvida: { label: "Resolvida", color: "bg-green-100 text-green-700" },
+  aprovada_cliente: { label: "Aprovada", color: "bg-blue-100 text-blue-700" },
+} as const
+
+export const PENDENCIA_PRIORIDADE = {
+  alta: { label: "Alta", color: "bg-red-100 text-red-700" },
+  media: { label: "Média", color: "bg-yellow-100 text-yellow-700" },
+  baixa: { label: "Baixa", color: "bg-gray-100 text-gray-700" },
+} as const
+
+export const INSPECAO_TIPO = {
+  seguranca: { label: "Segurança", color: "bg-orange-100 text-orange-700" },
+  qualidade: { label: "Qualidade", color: "bg-blue-100 text-blue-700" },
+  recebimento_material: { label: "Recebimento", color: "bg-cyan-100 text-cyan-700" },
+  vistoria_cliente: { label: "Vistoria cliente", color: "bg-purple-100 text-purple-700" },
+} as const
+
+export const INSPECAO_STATUS = {
+  pendente: { label: "Pendente", color: "bg-yellow-100 text-yellow-700" },
+  conforme: { label: "Conforme", color: "bg-green-100 text-green-700" },
+  nao_conforme: { label: "Não conforme", color: "bg-red-100 text-red-700" },
+  parcial: { label: "Parcial", color: "bg-orange-100 text-orange-700" },
+} as const
+
+export const ALTERACAO_STATUS = {
+  proposta: { label: "Proposta", color: "bg-gray-100 text-gray-700" },
+  aprovada_interna: { label: "Aprovada interna", color: "bg-blue-100 text-blue-700" },
+  aprovada_cliente: { label: "Aprovada cliente", color: "bg-green-100 text-green-700" },
+  rejeitada: { label: "Rejeitada", color: "bg-red-100 text-red-700" },
+  cancelada: { label: "Cancelada", color: "bg-gray-100 text-gray-700" },
+} as const
+
+export const ORCAMENTO_STATUS = {
+  rascunho: { label: "Rascunho", color: "bg-gray-100 text-gray-700" },
+  apresentado: { label: "Apresentado", color: "bg-blue-100 text-blue-700" },
+  aprovado: { label: "Aprovado", color: "bg-green-100 text-green-700" },
+  rejeitado: { label: "Rejeitado", color: "bg-red-100 text-red-700" },
+  substituido: { label: "Substituído", color: "bg-orange-100 text-orange-700" },
 } as const
 
 export type Role = "diretor" | "engenheiro" | "financeiro" | "arquiteta" | "mestre_obra"

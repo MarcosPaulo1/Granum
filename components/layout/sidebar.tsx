@@ -102,10 +102,16 @@ const NAV_ITEMS: NavItem[] = [
   },
   {
     label: "Relatórios",
-    href: "/dashboards/financeiro",
+    href: "/dashboards/geral",
     icon: BarChart3,
     roles: ["diretor", "financeiro", "engenheiro"],
     children: [
+      {
+        label: "Visão geral",
+        href: "/dashboards/geral",
+        icon: LayoutDashboard,
+        roles: ["diretor", "financeiro"],
+      },
       {
         label: "Dashboard financeiro",
         href: "/dashboards/financeiro",
