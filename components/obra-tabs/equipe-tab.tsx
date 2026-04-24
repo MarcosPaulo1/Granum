@@ -65,6 +65,21 @@ export function EquipeTab({ obraId }: EquipeTabProps) {
         await supabase.from("escala").update({ status: "cancelado" }).eq("id_escala", existing.id_escala)
       }
     } else {
+      // Verificar se trabalhador já está escalado em outra obra no mesmo dia/turno
+      const { data: conflicts } = await supabase
+        .from("escala")
+        .select("id_obra")
+        .eq("id_trabalhador", trab.id_trabalhador)
+        .eq("data_prevista", dateStr)
+        .eq("turno", "integral")
+        .neq("status", "cancelado")
+        .neq("id_obra", obraId)
+
+      if (conflicts && conflicts.length > 0) {
+        toast.error("Trabalhador já escalado em outra obra neste dia/turno")
+        return
+      }
+
       const { error } = await supabase.from("escala").insert({
         id_obra: obraId,
         id_trabalhador: trab.id_trabalhador,
@@ -73,7 +88,7 @@ export function EquipeTab({ obraId }: EquipeTabProps) {
         turno: "integral",
         status: "planejado",
       })
-      if (error) { toast.error("Erro: " + error.message); return }
+      if (error) { toast.error("Erro ao escalar trabalhador: " + error.message); return }
     }
     load()
   }

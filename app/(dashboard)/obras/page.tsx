@@ -7,6 +7,7 @@ import { useUser } from "@/lib/hooks/use-user"
 import { DataTable } from "@/components/tables/data-table"
 import { StatusBadge } from "@/components/shared/status-badge"
 import { ProgressBar } from "@/components/shared/progress-bar"
+import { ObraForm } from "@/components/forms/obra-form"
 import { Button } from "@/components/ui/button"
 import { OBRA_STATUS } from "@/lib/constants"
 import { formatDate } from "@/lib/utils/format"
@@ -78,6 +79,7 @@ export default function ObrasPage() {
   const { role, isLoading: userLoading } = useUser()
   const [obras, setObras] = useState<ObraRow[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [formOpen, setFormOpen] = useState(false)
 
   const loadObras = useCallback(async () => {
     const supabase = createClient()
@@ -130,7 +132,7 @@ export default function ObrasPage() {
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold">Obras</h1>
         {canCreate && (
-          <Button onClick={() => router.push("/obras/nova")}>
+          <Button onClick={() => setFormOpen(true)}>
             <Plus className="mr-2 h-4 w-4" />
             Nova obra
           </Button>
@@ -145,6 +147,8 @@ export default function ObrasPage() {
         onRowClick={(row) => router.push(`/obras/${row.id_obra}`)}
         emptyMessage="Nenhuma obra cadastrada. Crie a primeira."
       />
+
+      <ObraForm open={formOpen} onOpenChange={setFormOpen} onSuccess={loadObras} />
     </div>
   )
 }

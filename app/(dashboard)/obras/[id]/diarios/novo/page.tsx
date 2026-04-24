@@ -36,10 +36,30 @@ export default function NovoDiarioPage() {
   const [origem, setOrigem] = useState("manual")
   const [escalados, setEscalados] = useState<Escalado[]>([])
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [clima, setClima] = useState<{ temperatura: number; condicao: string; chuva: boolean; descricao: string } | null>(null)
+  const [climaLoading, setClimaLoading] = useState(false)
 
   useEffect(() => {
     loadEscalados()
+    loadClima()
   }, [data])
+
+  async function loadClima() {
+    const supabase = createClient()
+    const { data: obra } = await supabase.from("obra").select("latitude, longitude").eq("id_obra", obraId).single()
+    const obraData = obra as { latitude: number | null; longitude: number | null } | null
+    if (!obraData?.latitude || !obraData?.longitude) return
+
+    setClimaLoading(true)
+    try {
+      const res = await fetch(`/api/clima?lat=${obraData.latitude}&lon=${obraData.longitude}`)
+      if (res.ok) {
+        const climaData = await res.json()
+        setClima(climaData)
+      }
+    } catch { /* silently ignore — clima is optional */ }
+    setClimaLoading(false)
+  }
 
   async function loadEscalados() {
     const supabase = createClient()
@@ -93,15 +113,23 @@ export default function NovoDiarioPage() {
     setIsSubmitting(true)
     const supabase = createClient()
 
-    // Criar diário
-    const { data: diario, error: dErr } = await supabase.from("diario_obra").insert({
+    // Criar diário (com clima se disponível)
+    const diarioPayload: Record<string, unknown> = {
       id_obra: obraId,
       id_responsavel: responsavel?.id_responsavel ?? null,
       data,
       conteudo,
       origem,
       status_revisao: "pendente",
-    }).select("id_diario").single()
+    }
+    if (clima) {
+      diarioPayload.clima_temperatura = clima.temperatura
+      diarioPayload.clima_condicao = clima.condicao
+      diarioPayload.clima_chuva = clima.chuva
+      diarioPayload.clima_descricao = clima.descricao
+    }
+
+    const { data: diario, error: dErr } = await supabase.from("diario_obra").insert(diarioPayload).select("id_diario").single()
 
     if (dErr) { toast.error("Erro ao criar diário: " + dErr.message); setIsSubmitting(false); return }
 
@@ -146,9 +174,18 @@ export default function NovoDiarioPage() {
           </div>
         </div>
 
+        {/* Clima automático */}
+        {climaLoading && <p className="text-sm text-muted-foreground">Carregando clima...</p>}
+        {clima && (
+          <div className="border rounded p-3 bg-blue-50 text-sm">
+            <p className="font-medium">Clima no local da obra</p>
+            <p className="text-muted-foreground">{clima.descricao}</p>
+          </div>
+        )}
+
         <div>
           <Label>Conteúdo do diário *</Label>
-          <Textarea value={conteudo} onChange={(e) => setConteudo(e.target.value)} rows={6} placeholder="Descreva as atividades realizadas, condições climáticas, ocorrências..." />
+          <Textarea value={conteudo} onChange={(e) => setConteudo(e.target.value)} rows={6} placeholder="Descreva as atividades realizadas, ocorrências..." />
         </div>
       </div>
 

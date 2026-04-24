@@ -48,18 +48,34 @@ export function TarefasTab({ obraId, role }: TarefasTabProps) {
 
   useEffect(() => { load() }, [load])
 
+  async function recalcObraPercentual() {
+    const supabase = createClient()
+    const { data: allTarefas } = await supabase
+      .from("tarefa")
+      .select("percentual_concluido")
+      .eq("id_obra", obraId)
+
+    if (allTarefas && allTarefas.length > 0) {
+      const avg = (allTarefas as { percentual_concluido: number }[]).reduce((s, t) => s + t.percentual_concluido, 0) / allTarefas.length
+      await supabase.from("obra").update({ percentual_finalizada: Math.round(avg * 100) / 100 }).eq("id_obra", obraId)
+    }
+  }
+
   async function updateStatus(tarefa: Tarefa, newStatus: string) {
     const supabase = createClient()
     const update: Record<string, unknown> = { status: newStatus }
     if (newStatus === "concluida") update.percentual_concluido = 100
-    await supabase.from("tarefa").update(update).eq("id_tarefa", tarefa.id_tarefa)
+    const { error } = await supabase.from("tarefa").update(update).eq("id_tarefa", tarefa.id_tarefa)
+    if (error) { toast.error("Erro: " + error.message); return }
     toast.success("Status atualizado")
+    await recalcObraPercentual()
     load()
   }
 
   async function updatePercent(tarefa: Tarefa, percent: number) {
     const supabase = createClient()
     await supabase.from("tarefa").update({ percentual_concluido: percent }).eq("id_tarefa", tarefa.id_tarefa)
+    await recalcObraPercentual()
     load()
   }
 
@@ -134,7 +150,7 @@ export function TarefasTab({ obraId, role }: TarefasTabProps) {
         onOpenChange={setFormOpen}
         obraId={obraId}
         tarefa={editTarefa as unknown as Record<string, unknown> | null}
-        onSuccess={load}
+        onSuccess={async () => { await recalcObraPercentual(); load() }}
       />
     </div>
   )

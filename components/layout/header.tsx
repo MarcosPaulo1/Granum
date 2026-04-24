@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
 import { Sidebar } from "./sidebar"
 import { DynamicBreadcrumb } from "./breadcrumb"
+import { NotificationsBell } from "@/components/shared/notifications-bell"
 import type { Role } from "@/lib/constants"
 
 interface HeaderProps {
@@ -35,6 +36,10 @@ export function Header({ role, userName, roleName, onSignOut }: HeaderProps) {
       </Sheet>
 
       <DynamicBreadcrumb />
+
+      <div className="ml-auto">
+        <NotificationsBell />
+      </div>
     </header>
   )
 }

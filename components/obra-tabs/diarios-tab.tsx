@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { StatusBadge } from "@/components/shared/status-badge"
+import { ConfirmDialog } from "@/components/shared/confirm-dialog"
 import { DIARIO_REVISAO, DIARIO_ORIGEM } from "@/lib/constants"
 import { formatDate, truncate } from "@/lib/utils/format"
 import { Plus, Check, X } from "lucide-react"
@@ -23,6 +24,7 @@ interface DiariosTabProps {
 export function DiariosTab({ obraId, role }: DiariosTabProps) {
   const router = useRouter()
   const [diarios, setDiarios] = useState<Diario[]>([])
+  const [confirmAction, setConfirmAction] = useState<{ id: number; status: string } | null>(null)
 
   const load = useCallback(async () => {
     const supabase = createClient()
@@ -34,7 +36,8 @@ export function DiariosTab({ obraId, role }: DiariosTabProps) {
 
   async function updateRevisao(id: number, status: string) {
     const supabase = createClient()
-    await supabase.from("diario_obra").update({ status_revisao: status }).eq("id_diario", id)
+    const { error } = await supabase.from("diario_obra").update({ status_revisao: status }).eq("id_diario", id)
+    if (error) { toast.error("Erro ao atualizar diário: " + error.message); return }
     toast.success(`Diário ${status}`)
     load()
   }
@@ -59,8 +62,8 @@ export function DiariosTab({ obraId, role }: DiariosTabProps) {
               </div>
               {role === "diretor" && d.status_revisao === "pendente" && (
                 <div className="flex gap-1">
-                  <Button variant="ghost" size="sm" className="text-green-600" onClick={() => updateRevisao(d.id_diario, "aprovado")}><Check className="h-4 w-4" /></Button>
-                  <Button variant="ghost" size="sm" className="text-red-600" onClick={() => updateRevisao(d.id_diario, "rejeitado")}><X className="h-4 w-4" /></Button>
+                  <Button variant="ghost" size="sm" className="text-green-600" onClick={() => setConfirmAction({ id: d.id_diario, status: "aprovado" })}><Check className="h-4 w-4" /></Button>
+                  <Button variant="ghost" size="sm" className="text-red-600" onClick={() => setConfirmAction({ id: d.id_diario, status: "rejeitado" })}><X className="h-4 w-4" /></Button>
                 </div>
               )}
             </div>
@@ -69,6 +72,19 @@ export function DiariosTab({ obraId, role }: DiariosTabProps) {
         ))}
         {diarios.length === 0 && <p className="text-muted-foreground text-sm">Nenhum diário registrado.</p>}
       </div>
+
+      <ConfirmDialog
+        open={!!confirmAction}
+        onOpenChange={(open) => { if (!open) setConfirmAction(null) }}
+        title={confirmAction?.status === "aprovado" ? "Aprovar diário?" : "Rejeitar diário?"}
+        description={confirmAction?.status === "aprovado" ? "O diário será marcado como aprovado." : "O diário será marcado como rejeitado."}
+        confirmLabel={confirmAction?.status === "aprovado" ? "Aprovar" : "Rejeitar"}
+        variant={confirmAction?.status === "rejeitado" ? "destructive" : "default"}
+        onConfirm={() => {
+          if (confirmAction) updateRevisao(confirmAction.id, confirmAction.status)
+          setConfirmAction(null)
+        }}
+      />
     </div>
   )
 }
