@@ -22,6 +22,7 @@ import {
   Settings,
   Link2,
   LogOut,
+  User,
 } from "lucide-react"
 
 interface NavItem {
@@ -138,6 +139,12 @@ const NAV_ITEMS: NavItem[] = [
     href: "/integracoes",
     icon: Link2,
     roles: ["diretor"],
+  },
+  {
+    label: "Meu perfil",
+    href: "/perfil",
+    icon: User,
+    roles: ["diretor", "engenheiro", "financeiro", "arquiteta", "mestre_obra"],
   },
 ]
 
