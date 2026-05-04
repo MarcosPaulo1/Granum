@@ -1,5 +1,6 @@
 "use client"
 
+import Image from "next/image"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
@@ -20,7 +21,7 @@ import {
   CalendarDays,
   Settings,
   Link2,
-  Building2,
+  LogOut,
 } from "lucide-react"
 
 interface NavItem {
@@ -155,16 +156,20 @@ export function Sidebar({ role, userName, roleName, onSignOut }: SidebarProps) {
   )
 
   return (
-    <aside className="flex h-full w-64 flex-col border-r bg-white">
-      <div className="flex h-16 items-center gap-2 border-b px-4">
-        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-600">
-          <Building2 className="h-4 w-4 text-white" />
-        </div>
-        <span className="font-semibold text-lg">Gestão de Obras</span>
+    <aside className="flex h-full w-64 flex-col bg-sidebar text-sidebar-foreground">
+      <div className="flex h-16 items-center gap-2 border-b border-sidebar-border px-5">
+        <Image
+          src="/granum-logo-branco.png"
+          alt="Granum"
+          width={128}
+          height={32}
+          className="h-7 w-auto"
+          priority
+        />
       </div>
 
       <nav className="flex-1 overflow-y-auto p-3">
-        <ul className="space-y-1">
+        <ul className="space-y-0.5">
           {filteredItems.map((item) => (
             <li key={item.href + item.label}>
               {item.children ? (
@@ -177,15 +182,16 @@ export function Sidebar({ role, userName, roleName, onSignOut }: SidebarProps) {
         </ul>
       </nav>
 
-      <div className="border-t p-4">
+      <div className="border-t border-sidebar-border p-4">
         <div className="mb-2">
-          <p className="text-sm font-medium truncate">{userName}</p>
-          <p className="text-xs text-muted-foreground">{roleName}</p>
+          <p className="text-sm font-medium truncate text-sidebar-foreground">{userName}</p>
+          <p className="text-xs text-sidebar-foreground/60">{roleName}</p>
         </div>
         <button
           onClick={onSignOut}
-          className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+          className="flex items-center gap-2 text-sm text-sidebar-foreground/70 hover:text-sidebar-foreground transition-colors"
         >
+          <LogOut className="h-3.5 w-3.5" />
           Sair
         </button>
       </div>
@@ -201,12 +207,18 @@ function SidebarLink({ item, pathname }: { item: NavItem; pathname: string }) {
     <Link
       href={item.href}
       className={cn(
-        "flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors",
+        "relative flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors",
         isActive
-          ? "bg-blue-50 text-blue-700 font-medium"
-          : "text-muted-foreground hover:bg-gray-100 hover:text-foreground"
+          ? "bg-sidebar-accent text-sidebar-foreground font-medium"
+          : "text-sidebar-foreground/75 hover:bg-sidebar-accent hover:text-sidebar-foreground"
       )}
     >
+      {isActive && (
+        <span
+          aria-hidden
+          className="absolute left-0 top-1.5 bottom-1.5 w-0.5 rounded-r bg-sidebar-primary"
+        />
+      )}
       <Icon className="h-4 w-4 shrink-0" />
       {item.label}
     </Link>
@@ -228,19 +240,19 @@ function SidebarGroup({
   const Icon = item.icon
 
   return (
-    <div>
+    <div className="mt-2">
       <div
         className={cn(
-          "flex items-center gap-3 rounded-md px-3 py-2 text-sm",
+          "flex items-center gap-3 px-3 py-1.5 text-[11px] uppercase tracking-wider font-semibold",
           isGroupActive
-            ? "text-blue-700 font-medium"
-            : "text-muted-foreground"
+            ? "text-sidebar-foreground/90"
+            : "text-sidebar-foreground/50"
         )}
       >
-        <Icon className="h-4 w-4 shrink-0" />
+        <Icon className="h-3.5 w-3.5 shrink-0" />
         {item.label}
       </div>
-      <ul className="ml-7 space-y-1">
+      <ul className="space-y-0.5">
         {item.children
           ?.filter((child) => role && child.roles.includes(role))
           .map((child) => (
