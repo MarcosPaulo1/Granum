@@ -135,6 +135,62 @@ import { PageSkeleton } from "@/components/shared/loading-skeleton"
 if (isLoading) return <PageSkeleton />
 ```
 
+### KPI cards (topo de listagens, dashboards)
+```tsx
+import { KpiCard, KpiGrid } from "@/components/shared/kpi-card"
+import { Users } from "lucide-react"
+<KpiGrid cols={4}>
+  <KpiCard label="Clientes ativos" value="42" sub="vs. 38 mes anterior" trend="up"
+    tone="success" icon={<Users />} />
+</KpiGrid>
+```
+Tones: `neutral | primary | success | warning | danger | info | planned` — adicionam barra lateral colorida + icone com bg suave.
+
+### Segmented control (filtros inline: Todos / Ativos / Arquivados)
+```tsx
+import { SegmentedControl } from "@/components/shared/segmented-control"
+<SegmentedControl value={status} onValueChange={setStatus} options={[
+  { value: 'todos', label: 'Todos', count: 42 },
+  { value: 'ativos', label: 'Ativos', count: 38 },
+  { value: 'arquivados', label: 'Arquivados', count: 4 },
+]} />
+```
+
+### Avatar (PJ quadrado / PF circular / Usuario)
+```tsx
+import { Avatar } from "@/components/shared/avatar"
+<Avatar variant="pj" size="sm" name="Construtora Ventura Ltda." /> // → CV em quadrado indigo soft
+<Avatar variant="pf" size="md" initials="JA" />                    // → JA em circulo slate
+<Avatar variant="user" size="xs" name="Marcos Paulo" />            // → MP em circulo indigo
+```
+
+### Presenca semanal (linha de tabela trabalhadores)
+```tsx
+import { PresenceWeek } from "@/components/shared/presence-week"
+<PresenceWeek present={5} total={6} showCount />
+```
+6 barras verticais; preenchidas em verde, vazias em cinza-300.
+
+### Chip de categoria (tags coloridas: emergencia, prioridade, status soft)
+```tsx
+import { CategoryChip } from "@/components/shared/category-chip"
+<CategoryChip tone="warning">Atrasado</CategoryChip>
+<CategoryChip tone="success" icon={<Check />}>Aprovado</CategoryChip>
+```
+Tones: `neutral | primary | success | warning | danger | info | outline`.
+
+### Cabecalho de pagina
+```tsx
+import { PageHeader } from "@/components/shared/page-header"
+<PageHeader
+  eyebrow="FINANCEIRO · LANCAMENTO"
+  title="Novo lancamento"
+  badge={<Badge>Rascunho</Badge>}
+  subtitle="Registre uma entrada ou saida..."
+  actions={<Button>Salvar</Button>}
+/>
+```
+
 ### Formatacao BR
 ```tsx
 import { formatBRL, formatDate, formatDateTime, formatCPF, formatCNPJ, formatCPFCNPJ, formatPhone, formatPercent, truncate } from "@/lib/utils/format"
