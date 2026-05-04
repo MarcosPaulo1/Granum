@@ -1,5 +1,45 @@
 # Granum — Sistema de Gestao de Obras
 
+## Design system (white-label com acento Granum)
+
+**Decisao de paleta (2026-05-04):** apos handoff do Claude Design, decidimos abandonar a aplicacao integral da identidade visual da Nathalia Ferreira Studio (terracota/azul-escuro/verde-oliva) porque os graficos ficavam dificeis de ler. O sistema agora e **white-label** com excecao da sidebar e da logo.
+
+### Tokens (em `app/globals.css`)
+
+| Token | Valor | Uso |
+|---|---|---|
+| `--primary` | `#4F46E5` (Indigo-600) | CTAs, links, foco |
+| `--background` | `#F8FAFC` (Slate-50) | Fundo do app |
+| `--foreground` | `#0F172A` (Slate-900) | Texto primario |
+| `--muted-foreground` | `#475569` (Slate-600) | Texto secundario |
+| `--border` | `#E2E8F0` (Slate-200) | Bordas suaves |
+| `--input` | `#CBD5E1` (Slate-300) | Bordas de input |
+| `--sidebar` | `#5B6A7A` (**Granum azul-escuro**) | **Excecao branding na sidebar** |
+| `--sidebar-foreground` | `#F1F5F9` | Texto da sidebar |
+| `--sidebar-primary` | `#4F46E5` | Barra lateral do item ativo |
+| `--success` / `--warning` / `--info` | Emerald / Amber / Blue | Badges de status |
+| `--chart-1` ... `--chart-5` | Terracota, Verde-oliva, Indigo, Amber, Blue | **Series de grafico — preservam acento da marca** |
+| `--granum-azul` / `--granum-terracota` / `--granum-verde-oliva` / `--granum-bege` | Marca | Acentos pontuais |
+
+### Logos
+- `public/granum-logo-branco.png` — sidebar (sobre `#5B6A7A`)
+- `public/granum-logo-bege.png` — alternativa
+- `public/granum-simbolo-branco.png` — favicon/compacto
+
+### Fonte
+- **Body**: Inter (via `next/font/google`, var `--font-sans`)
+- **Mono**: Geist Mono (var `--font-mono`, valores monetarios use classe `.mono` ou `font-mono`)
+- Fontes de marca (Zen Kaku Gothic New, Oooh Baby) **nao sao usadas** no app — fazem parte do material da marca, nao do produto.
+
+### Regras
+- Acessar paleta via classes Tailwind dos tokens: `bg-primary`, `text-muted-foreground`, `border-border`, `bg-success-soft`, `text-success-ink`, `bg-sidebar`, etc.
+- **Nunca** hardcodar hex de cor em componentes — usar token.
+- **Nao** usar `text-blue-700`, `bg-blue-50` (pre-tokens) em codigo novo. Fase 1 vai migrar os pendentes.
+- Para acentos da marca em chart Recharts: `var(--chart-1)` (terracota) e `var(--chart-2)` (verde-oliva).
+- Tabular numerics em valores monetarios: classe `.mono` ou `tabular` (ja aplicada por base) ou utility `font-mono`.
+
+---
+
 ## Leia antes de codar
 
 Leia TODOS os docs de spec antes de implementar qualquer feature nova:
