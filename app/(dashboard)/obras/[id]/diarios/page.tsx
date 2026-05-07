@@ -1,73 +1,52 @@
 "use client"
 
-import { useEffect, useState, useCallback } from "react"
-import { useParams, useRouter } from "next/navigation"
-import { createClient } from "@/lib/supabase/client"
-import { useUser } from "@/lib/hooks/use-user"
-import { Button } from "@/components/ui/button"
-import { StatusBadge } from "@/components/shared/status-badge"
-import { DIARIO_REVISAO, DIARIO_ORIGEM } from "@/lib/constants"
-import { formatDate, truncate } from "@/lib/utils/format"
-import { Plus, Check, X } from "lucide-react"
-import { toast } from "sonner"
+import Link from "next/link"
+import { useEffect, useState } from "react"
+import { useParams } from "next/navigation"
+import { ArrowLeft } from "lucide-react"
 
-interface Diario {
-  id_diario: number; data: string; conteudo: string | null; origem: string
-  status_revisao: string; id_responsavel: number | null
-}
+import { DiariosTab } from "@/components/obra-tabs/diarios-tab"
+import { PageHeader } from "@/components/shared/page-header"
+import { useUser } from "@/lib/hooks/use-user"
+import { createClient } from "@/lib/supabase/client"
 
 export default function DiariosPage() {
   const params = useParams()
-  const router = useRouter()
   const { role } = useUser()
   const obraId = Number(params.id)
-  const [diarios, setDiarios] = useState<Diario[]>([])
+  const [obraNome, setObraNome] = useState("")
 
-  const load = useCallback(async () => {
+  useEffect(() => {
     const supabase = createClient()
-    const { data } = await supabase.from("diario_obra").select("*").eq("id_obra", obraId).order("data", { ascending: false })
-    setDiarios((data ?? []) as Diario[])
+    supabase
+      .from("obra")
+      .select("nome")
+      .eq("id_obra", obraId)
+      .single()
+      .then(({ data }) => {
+        if (data) setObraNome((data as { nome: string }).nome)
+      })
   }, [obraId])
 
-  useEffect(() => { load() }, [load])
-
-  async function updateRevisao(id: number, status: string) {
-    const supabase = createClient()
-    await supabase.from("diario_obra").update({ status_revisao: status }).eq("id_diario", id)
-    toast.success(`Diário ${status}`)
-    load()
-  }
-
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">Diários de obra</h1>
-        <Button onClick={() => router.push(`/obras/${obraId}/diarios/novo`)}>
-          <Plus className="mr-2 h-4 w-4" /> Novo diário
-        </Button>
+    <div className="space-y-6">
+      <div className="flex items-center gap-2 text-[12.5px] text-muted-foreground">
+        <Link
+          href={`/obras/${obraId}`}
+          className="inline-flex items-center gap-1 hover:text-foreground"
+        >
+          <ArrowLeft className="size-3.5" />
+          {obraNome || "Obra"}
+        </Link>
       </div>
 
-      <div className="space-y-2">
-        {diarios.map((d) => (
-          <div key={d.id_diario} className="border rounded p-3 space-y-1">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span className="font-medium">{formatDate(d.data)}</span>
-                <StatusBadge status={d.origem} statusMap={DIARIO_ORIGEM} />
-                <StatusBadge status={d.status_revisao} statusMap={DIARIO_REVISAO} />
-              </div>
-              {role === "diretor" && d.status_revisao === "pendente" && (
-                <div className="flex gap-1">
-                  <Button variant="ghost" size="sm" className="text-green-600" onClick={() => updateRevisao(d.id_diario, "aprovado")}><Check className="h-4 w-4" /></Button>
-                  <Button variant="ghost" size="sm" className="text-red-600" onClick={() => updateRevisao(d.id_diario, "rejeitado")}><X className="h-4 w-4" /></Button>
-                </div>
-              )}
-            </div>
-            <p className="text-sm text-muted-foreground">{d.conteudo ? truncate(d.conteudo, 200) : "Sem conteúdo"}</p>
-          </div>
-        ))}
-        {diarios.length === 0 && <p className="text-muted-foreground text-sm">Nenhum diário registrado.</p>}
-      </div>
+      <PageHeader
+        eyebrow="Obra · Acompanhamento diário"
+        title="Diários de obra"
+        subtitle={obraNome}
+      />
+
+      <DiariosTab obraId={obraId} role={role} />
     </div>
   )
 }
