@@ -1,91 +1,127 @@
 "use client"
 
+// Port literal de granum-design/responsaveis-app.jsx + Responsaveis.html
+
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
-import {
-  Briefcase,
-  DollarSign,
-  Download,
-  Hammer,
-  Layout,
-  MoreHorizontal,
-  Plus,
-  Search,
-} from "lucide-react"
 import { toast } from "sonner"
 
 import { ResponsavelForm } from "@/components/forms/responsavel-form"
-import { Avatar } from "@/components/shared/avatar"
-import { CategoryChip } from "@/components/shared/category-chip"
-import { KpiCard, KpiGrid } from "@/components/shared/kpi-card"
-import { PageHeader } from "@/components/shared/page-header"
-import {
-  SegmentedControl,
-  type SegmentedOption,
-} from "@/components/shared/segmented-control"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
+import { Icon } from "@/components/granum/icon"
 import { ROLES, type Role } from "@/lib/constants"
 import { createClient } from "@/lib/supabase/client"
 import { formatDate } from "@/lib/utils/format"
 
-interface ResponsavelRow {
-  id_responsavel: number
+interface RespRow {
+  id: string
+  rawId: number
   nome: string
-  cargo: string | null
-  departamento: string | null
-  email: string | null
-  telefone: string | null
-  ativo: boolean | null
-  data_admissao: string | null
-  perfil_codigo: Role | string
+  init: string
+  perfil: Role | string
+  cargo: string
+  depto: string
+  email: string
+  fone: string
+  admissao: string
+  obras: number
+  tarefas: number
+  status: "ativo" | "inativo"
 }
 
-const PERFIL_TONE: Record<
-  Role | "outro",
-  "primary" | "info" | "success" | "warning" | "neutral"
+const PERFIL_META: Record<
+  string,
+  { label: string; bg: string; fg: string; dot: string }
 > = {
-  diretor: "primary",
-  arquiteta: "info",
-  engenheiro: "success",
-  mestre_obra: "warning",
-  financeiro: "neutral",
-  outro: "neutral",
+  diretor: {
+    label: "Diretor(a)",
+    bg: "color-mix(in oklab, var(--primary) 22%, var(--surface-muted))",
+    fg: "var(--primary)",
+    dot: "var(--primary)",
+  },
+  arquiteta: {
+    label: "Arquiteta",
+    bg: "color-mix(in oklab, var(--info) 22%, var(--surface-muted))",
+    fg: "var(--info-ink)",
+    dot: "var(--info)",
+  },
+  engenheiro: {
+    label: "Engenheiro(a)",
+    bg: "color-mix(in oklab, var(--success) 20%, var(--surface-muted))",
+    fg: "var(--success-ink)",
+    dot: "var(--success)",
+  },
+  mestre_obra: {
+    label: "Mestre de obras",
+    bg: "color-mix(in oklab, var(--warning) 24%, var(--surface-muted))",
+    fg: "var(--warning-ink)",
+    dot: "var(--warning)",
+  },
+  financeiro: {
+    label: "Financeiro",
+    bg: "var(--surface-muted)",
+    fg: "var(--ink)",
+    dot: "var(--ink-soft)",
+  },
 }
 
-function perfilLabel(codigo: string): string {
-  return (ROLES as Record<string, string>)[codigo] ?? codigo
+function getInitials(nome: string): string {
+  const parts = nome.trim().split(/\s+/).filter(Boolean)
+  if (parts.length === 0) return "?"
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase()
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
 }
 
-function perfilTone(codigo: string) {
-  return (PERFIL_TONE as Record<string, "primary" | "info" | "success" | "warning" | "neutral">)[codigo] ?? "neutral"
+function PerfilBadge({ p }: { p: string }) {
+  const m =
+    PERFIL_META[p] ?? {
+      label: (ROLES as Record<string, string>)[p] ?? p,
+      bg: "var(--surface-muted)",
+      fg: "var(--ink)",
+      dot: "var(--ink-soft)",
+    }
+  return (
+    <span
+      className="badge"
+      style={{ background: m.bg, color: m.fg, fontWeight: 500 }}
+    >
+      <span
+        style={{
+          width: 6,
+          height: 6,
+          borderRadius: "50%",
+          background: m.dot,
+          display: "inline-block",
+          marginRight: 6,
+        }}
+      />
+      {m.label}
+    </span>
+  )
 }
 
-function responsavelCode(id: number) {
-  return `RSP-${String(id).padStart(3, "0")}`
+function StatusBadge({ s }: { s: RespRow["status"] }) {
+  return s === "ativo" ? (
+    <span className="badge dot badge-success">Ativo</span>
+  ) : (
+    <span className="badge dot badge-neutral">Inativo</span>
+  )
 }
-
-const STATUS_OPTIONS: SegmentedOption<"todos" | "ativos" | "inativos">[] = [
-  { value: "todos", label: "Todos" },
-  { value: "ativos", label: "Ativos" },
-  { value: "inativos", label: "Inativos" },
-]
 
 export default function ResponsaveisPage() {
   const router = useRouter()
-  const [rows, setRows] = useState<ResponsavelRow[]>([])
+  const [rows, setRows] = useState<RespRow[]>([])
   const [isLoading, setIsLoading] = useState(true)
-  const [filtroPerfil, setFiltroPerfil] = useState<"todos" | string>("todos")
-  const [filtroDepto, setFiltroDepto] = useState<"todos" | string>("todos")
-  const [filtroStatus, setFiltroStatus] =
-    useState<"todos" | "ativos" | "inativos">("todos")
+  const [fPerfil, setFPerfil] = useState<"todos" | string>("todos")
+  const [fDepto, setFDepto] = useState<"todos" | string>("todos")
+  const [fStatus, setFStatus] = useState<"todos" | "ativo" | "inativo">(
+    "todos"
+  )
   const [busca, setBusca] = useState("")
   const [formOpen, setFormOpen] = useState(false)
 
   const load = useCallback(async () => {
     setIsLoading(true)
     const supabase = createClient()
-
     const { data: resps, error } = await supabase
       .from("responsavel")
       .select(
@@ -94,7 +130,7 @@ export default function ResponsaveisPage() {
       .order("nome")
 
     if (error) {
-      toast.error("Erro ao carregar responsáveis: " + error.message)
+      toast.error("Erro: " + error.message)
       setIsLoading(false)
       return
     }
@@ -102,20 +138,25 @@ export default function ResponsaveisPage() {
     const { data: perfis } = await supabase
       .from("perfil")
       .select("id_perfil, nome")
-
-    const perfilMap = new Map((perfis ?? []).map((p) => [p.id_perfil, p.nome]))
+    const perfilMap = new Map(
+      (perfis ?? []).map((p) => [p.id_perfil, p.nome as string])
+    )
 
     setRows(
       (resps ?? []).map((r) => ({
-        id_responsavel: r.id_responsavel,
+        id: `RSP-${String(r.id_responsavel).padStart(3, "0")}`,
+        rawId: r.id_responsavel,
         nome: r.nome,
-        cargo: r.cargo,
-        departamento: r.departamento,
-        email: r.email,
-        telefone: r.telefone,
-        ativo: r.ativo,
-        data_admissao: r.data_admissao,
-        perfil_codigo: perfilMap.get(r.id_perfil) ?? "outro",
+        init: getInitials(r.nome),
+        perfil: perfilMap.get(r.id_perfil) ?? "outro",
+        cargo: r.cargo ?? "",
+        depto: r.departamento ?? "",
+        email: r.email ?? "",
+        fone: r.telefone ?? "",
+        admissao: r.data_admissao ? formatDate(r.data_admissao) : "—",
+        obras: 0,
+        tarefas: 0,
+        status: r.ativo === false ? "inativo" : "ativo",
       }))
     )
     setIsLoading(false)
@@ -125,267 +166,262 @@ export default function ResponsaveisPage() {
     load()
   }, [load])
 
-  const departamentos = useMemo(
+  const deptos = useMemo(
     () =>
-      Array.from(
-        new Set(rows.map((r) => r.departamento).filter(Boolean) as string[])
-      ).sort(),
+      Array.from(new Set(rows.map((r) => r.depto).filter(Boolean))).sort(),
     [rows]
   )
 
   const filtered = useMemo(
     () =>
       rows.filter((r) => {
-        if (filtroPerfil !== "todos" && r.perfil_codigo !== filtroPerfil)
-          return false
-        if (filtroDepto !== "todos" && r.departamento !== filtroDepto)
-          return false
-        if (filtroStatus === "ativos" && r.ativo === false) return false
-        if (filtroStatus === "inativos" && r.ativo !== false) return false
-        if (busca) {
-          const q = busca.toLowerCase()
-          const haystack = [r.nome, r.email, r.cargo, r.departamento]
-            .filter(Boolean)
-            .join(" ")
+        if (fPerfil !== "todos" && r.perfil !== fPerfil) return false
+        if (fDepto !== "todos" && r.depto !== fDepto) return false
+        if (fStatus !== "todos" && r.status !== fStatus) return false
+        if (
+          busca &&
+          !(r.nome + r.email + r.cargo)
             .toLowerCase()
-          if (!haystack.includes(q)) return false
-        }
+            .includes(busca.toLowerCase())
+        )
+          return false
         return true
       }),
-    [rows, filtroPerfil, filtroDepto, filtroStatus, busca]
+    [rows, fPerfil, fDepto, fStatus, busca]
   )
 
-  const ativos = rows.filter((r) => r.ativo !== false)
-  const ativosCount = ativos.length
-  const byPerfil = (codigo: string) =>
-    ativos.filter((r) => r.perfil_codigo === codigo).length
-
-  const diretoria = byPerfil("diretor")
-  const arquitetura = byPerfil("arquiteta")
-  const execucao = byPerfil("engenheiro") + byPerfil("mestre_obra")
-  const financeiro = byPerfil("financeiro")
+  const ativos = rows.filter((r) => r.status === "ativo").length
+  const byPerfil = (p: string) =>
+    rows.filter((r) => r.perfil === p && r.status === "ativo").length
 
   return (
-    <div className="space-y-6">
-      <PageHeader
-        eyebrow="Cadastros · Equipe interna"
-        title="Responsáveis"
-        subtitle={`${rows.length} pessoa${rows.length === 1 ? "" : "s"} cadastrada${rows.length === 1 ? "" : "s"} · ${ativosCount} ativa${ativosCount === 1 ? "" : "s"} · ${departamentos.length} departamento${departamentos.length === 1 ? "" : "s"}`}
-        actions={
-          <>
-            <Button variant="outline" size="sm" disabled>
-              <Download data-icon="inline-start" />
+    <>
+      <div className="page-head">
+        <div className="page-head-top">
+          <div className="page-head-title">
+            <div className="obra-id">Cadastros · Equipe interna</div>
+            <h1>Responsáveis</h1>
+            <div className="subtitle">
+              {rows.length} pessoas cadastradas · {ativos} ativas ·{" "}
+              {deptos.length} departamentos
+            </div>
+          </div>
+          <div className="page-head-actions">
+            <button className="btn btn-secondary" type="button" disabled>
+              <Icon name="download" />
               Exportar
-            </Button>
-            <Button size="sm" onClick={() => setFormOpen(true)}>
-              <Plus data-icon="inline-start" />
+            </button>
+            <button
+              className="btn btn-primary"
+              type="button"
+              onClick={() => setFormOpen(true)}
+            >
+              <Icon name="plus" />
               Novo responsável
-            </Button>
-          </>
-        }
-      />
+            </button>
+          </div>
+        </div>
+      </div>
 
-      <KpiGrid cols={4}>
-        <KpiCard
-          tone="primary"
-          label="Diretoria"
-          value={diretoria}
-          sub="Acesso total ao sistema"
-          icon={<Briefcase />}
-        />
-        <KpiCard
-          tone="info"
-          label="Arquitetura"
-          value={arquitetura}
-          sub="Projetos e desenhos"
-          icon={<Layout />}
-        />
-        <KpiCard
-          tone="success"
-          label="Execução"
-          value={execucao}
-          sub="Engenheiros e mestres"
-          icon={<Hammer />}
-        />
-        <KpiCard
-          label="Financeiro"
-          value={financeiro}
-          sub="Lançamentos e pagamentos"
-          icon={<DollarSign />}
-        />
-      </KpiGrid>
+      <div className="list-kpis">
+        <div className="list-kpi">
+          <div className="list-kpi-label">Diretoria</div>
+          <div className="list-kpi-value">{byPerfil("diretor")}</div>
+          <div className="list-kpi-sub">
+            <Icon name="briefcase" />
+            Com acesso total
+          </div>
+        </div>
+        <div className="list-kpi">
+          <div className="list-kpi-label">Arquitetura</div>
+          <div className="list-kpi-value">{byPerfil("arquiteta")}</div>
+          <div className="list-kpi-sub">
+            <Icon name="layout" />
+            Projetos em andamento
+          </div>
+        </div>
+        <div className="list-kpi">
+          <div className="list-kpi-label">Execução</div>
+          <div className="list-kpi-value">
+            {byPerfil("engenheiro") + byPerfil("mestre_obra")}
+          </div>
+          <div className="list-kpi-sub">
+            <Icon name="hammer" />
+            Engenheiros e mestres
+          </div>
+        </div>
+        <div className="list-kpi">
+          <div className="list-kpi-label">Financeiro</div>
+          <div className="list-kpi-value">{byPerfil("financeiro")}</div>
+          <div className="list-kpi-sub">
+            <Icon name="dollar" />
+            Lançamentos e pagamentos
+          </div>
+        </div>
+      </div>
 
-      <div className="overflow-hidden rounded-md border border-border bg-card">
-        <div className="flex flex-col gap-3 border-b border-border p-4 lg:flex-row lg:items-center lg:justify-between">
-          <div className="relative max-w-md flex-1">
-            <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              type="search"
+      <div className="card" style={{ marginTop: 18 }}>
+        <div className="card-head list-toolbar">
+          <div className="list-search">
+            <Icon name="search" />
+            <input
+              type="text"
               placeholder="Buscar por nome, cargo ou e-mail…"
               value={busca}
               onChange={(e) => setBusca(e.target.value)}
-              className="h-9 pl-9"
             />
           </div>
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="list-filters">
             <select
-              value={filtroPerfil}
-              onChange={(e) => setFiltroPerfil(e.target.value)}
-              className="h-[34px] rounded-md border border-border bg-muted px-3 text-[12.5px] text-foreground outline-none focus:border-primary"
+              className="seg-select"
+              value={fPerfil}
+              onChange={(e) => setFPerfil(e.target.value)}
             >
               <option value="todos">Todos perfis</option>
-              {Object.entries(ROLES).map(([k, v]) => (
-                <option key={k} value={k}>
-                  {v}
-                </option>
-              ))}
+              <option value="diretor">Diretor</option>
+              <option value="arquiteta">Arquiteta</option>
+              <option value="engenheiro">Engenheiro</option>
+              <option value="mestre_obra">Mestre</option>
+              <option value="financeiro">Financeiro</option>
             </select>
             <select
-              value={filtroDepto}
-              onChange={(e) => setFiltroDepto(e.target.value)}
-              className="h-[34px] rounded-md border border-border bg-muted px-3 text-[12.5px] text-foreground outline-none focus:border-primary"
+              className="seg-select"
+              value={fDepto}
+              onChange={(e) => setFDepto(e.target.value)}
             >
               <option value="todos">Todos departamentos</option>
-              {departamentos.map((d) => (
+              {deptos.map((d) => (
                 <option key={d} value={d}>
                   {d}
                 </option>
               ))}
             </select>
-            <SegmentedControl
-              value={filtroStatus}
-              onValueChange={setFiltroStatus}
-              options={STATUS_OPTIONS}
-              ariaLabel="Filtro de status"
-            />
+            <div className="seg">
+              {(
+                [
+                  { id: "todos", label: "Todos" },
+                  { id: "ativo", label: "Ativos" },
+                  { id: "inativo", label: "Inativos" },
+                ] as const
+              ).map((t) => (
+                <button
+                  key={t.id}
+                  type="button"
+                  className={"seg-btn" + (fStatus === t.id ? " active" : "")}
+                  onClick={() => setFStatus(t.id)}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="min-w-full">
-            <thead>
-              <tr className="border-b border-border bg-muted/60 text-[11px] uppercase tracking-wider text-muted-foreground">
-                <th className="px-5 py-2.5 text-left font-semibold">Nome</th>
-                <th className="px-5 py-2.5 text-left font-semibold">
-                  Cargo · Depto
-                </th>
-                <th className="px-5 py-2.5 text-left font-semibold">Contato</th>
-                <th className="px-5 py-2.5 text-left font-semibold">Perfil</th>
-                <th className="px-5 py-2.5 text-left font-semibold">Status</th>
-                <th className="w-12 px-2 py-2.5"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {isLoading ? (
-                <tr>
-                  <td
-                    colSpan={6}
-                    className="px-5 py-12 text-center text-sm text-muted-foreground"
+        <div className="list-table">
+          <div className="list-thead">
+            <div>Nome</div>
+            <div>Cargo · Departamento</div>
+            <div>Contato</div>
+            <div>Perfil</div>
+            <div className="num">Obras · Tarefas</div>
+            <div>Status</div>
+            <div></div>
+          </div>
+          {isLoading ? (
+            <div
+              style={{
+                padding: "60px 24px",
+                textAlign: "center",
+                color: "var(--ink-muted)",
+                fontSize: 13.5,
+              }}
+            >
+              Carregando…
+            </div>
+          ) : filtered.length === 0 ? (
+            <div
+              style={{
+                padding: "60px 24px",
+                textAlign: "center",
+                color: "var(--ink-muted)",
+                fontSize: 13.5,
+              }}
+            >
+              Nenhum responsável encontrado.
+            </div>
+          ) : (
+            filtered.map((r) => (
+              <div
+                className="list-row2"
+                key={r.id}
+                onClick={() => router.push(`/responsaveis/${r.rawId}`)}
+                style={{ cursor: "pointer" }}
+              >
+                <div className="list-cell-name">
+                  <span className="avatar-sm">{r.init}</span>
+                  <div className="list-name-block">
+                    <div className="nm">
+                      <a>{r.nome}</a>
+                    </div>
+                    <div className="sub">
+                      {r.id} · Admissão {r.admissao}
+                    </div>
+                  </div>
+                </div>
+                <div>
+                  <div
+                    style={{
+                      fontSize: 13,
+                      color: "var(--ink)",
+                      fontWeight: 500,
+                    }}
                   >
-                    Carregando responsáveis…
-                  </td>
-                </tr>
-              ) : filtered.length === 0 ? (
-                <tr>
-                  <td
-                    colSpan={6}
-                    className="px-5 py-16 text-center text-sm text-muted-foreground"
+                    {r.cargo || "—"}
+                  </div>
+                  <div className="sub">{r.depto || "—"}</div>
+                </div>
+                <div className="list-cell-contact">
+                  <div className="em">{r.email || "—"}</div>
+                  {r.fone ? <div className="sub mono">{r.fone}</div> : null}
+                </div>
+                <div>
+                  <PerfilBadge p={r.perfil} />
+                </div>
+                <div className="list-cell-num">
+                  <div className="val mono">{r.obras}</div>
+                  <div className="sub">{r.tarefas} tarefas</div>
+                </div>
+                <div className="list-cell-status">
+                  <StatusBadge s={r.status} />
+                </div>
+                <div className="list-cell-actions">
+                  <button
+                    type="button"
+                    className="icon-btn"
+                    onClick={(e) => e.stopPropagation()}
+                    aria-label="Mais ações"
                   >
-                    {rows.length === 0
-                      ? "Nenhum responsável cadastrado ainda."
-                      : "Nenhum responsável encontrado com esses filtros."}
-                  </td>
-                </tr>
-              ) : (
-                filtered.map((r) => {
-                  const ativo = r.ativo !== false
-                  return (
-                    <tr
-                      key={r.id_responsavel}
-                      className="cursor-pointer border-b border-border transition-colors last:border-b-0 hover:bg-muted/40"
-                      onClick={() =>
-                        router.push(`/responsaveis/${r.id_responsavel}`)
-                      }
-                    >
-                      <td className="px-5 py-3">
-                        <div className="flex items-center gap-3">
-                          <Avatar variant="pf" name={r.nome} size="sm" />
-                          <div className="min-w-0">
-                            <div className="truncate text-[13.5px] font-medium text-foreground">
-                              {r.nome}
-                            </div>
-                            <div className="text-[11.5px] text-muted-foreground tabular-nums">
-                              {responsavelCode(r.id_responsavel)}
-                              {r.data_admissao
-                                ? ` · Admissão ${formatDate(r.data_admissao)}`
-                                : ""}
-                            </div>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-5 py-3">
-                        <div className="text-[13px] font-medium text-foreground">
-                          {r.cargo ?? <span className="text-muted-foreground">—</span>}
-                        </div>
-                        {r.departamento ? (
-                          <div className="text-[11.5px] text-muted-foreground">
-                            {r.departamento}
-                          </div>
-                        ) : null}
-                      </td>
-                      <td className="px-5 py-3">
-                        <div className="text-[12.5px] text-foreground">
-                          {r.email ?? (
-                            <span className="text-muted-foreground">—</span>
-                          )}
-                        </div>
-                        {r.telefone ? (
-                          <div className="mono mt-0.5 text-[11.5px] text-muted-foreground tabular-nums">
-                            {r.telefone}
-                          </div>
-                        ) : null}
-                      </td>
-                      <td className="px-5 py-3">
-                        <CategoryChip tone={perfilTone(r.perfil_codigo)}>
-                          {perfilLabel(r.perfil_codigo)}
-                        </CategoryChip>
-                      </td>
-                      <td className="px-5 py-3">
-                        {ativo ? (
-                          <CategoryChip tone="success">
-                            <span className="size-1.5 rounded-full bg-[var(--success)]" />
-                            Ativo
-                          </CategoryChip>
-                        ) : (
-                          <CategoryChip tone="neutral">
-                            <span className="size-1.5 rounded-full bg-muted-foreground/60" />
-                            Inativo
-                          </CategoryChip>
-                        )}
-                      </td>
-                      <td className="px-2 py-3 text-right">
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          onClick={(e) => e.stopPropagation()}
-                          aria-label="Mais ações"
-                        >
-                          <MoreHorizontal />
-                        </Button>
-                      </td>
-                    </tr>
-                  )
-                })
-              )}
-            </tbody>
-          </table>
+                    <Icon name="more" />
+                  </button>
+                </div>
+              </div>
+            ))
+          )}
         </div>
 
-        <div className="flex items-center justify-between border-t border-border px-5 py-3 text-[12.5px] text-muted-foreground">
-          <span>
-            Mostrando {filtered.length} de {rows.length} responsáve
-            {rows.length === 1 ? "l" : "is"}
-          </span>
+        <div className="list-foot">
+          <div className="sub">
+            Mostrando {filtered.length} de {rows.length} responsáveis
+          </div>
+          <div className="list-pag">
+            <button className="icon-btn" disabled>
+              <Icon name="chevronLeft" />
+            </button>
+            <span className="mono">1 / 1</span>
+            <button className="icon-btn" disabled>
+              <Icon name="chevronRight" />
+            </button>
+          </div>
         </div>
       </div>
 
@@ -394,6 +430,6 @@ export default function ResponsaveisPage() {
         onOpenChange={setFormOpen}
         onSuccess={load}
       />
-    </div>
+    </>
   )
 }

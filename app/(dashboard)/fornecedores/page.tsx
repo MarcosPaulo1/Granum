@@ -1,28 +1,13 @@
 "use client"
 
+// Port literal de granum-design/fornecedores-app.jsx + Fornecedores.html
+
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
-import {
-  Download,
-  MoreHorizontal,
-  Plus,
-  Search,
-  Truck,
-  Upload,
-} from "lucide-react"
 import { toast } from "sonner"
 
 import { FornecedorForm } from "@/components/forms/fornecedor-form"
-import { Avatar } from "@/components/shared/avatar"
-import { CategoryChip } from "@/components/shared/category-chip"
-import { KpiCard, KpiGrid } from "@/components/shared/kpi-card"
-import { PageHeader } from "@/components/shared/page-header"
-import {
-  SegmentedControl,
-  type SegmentedOption,
-} from "@/components/shared/segmented-control"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
+import { Icon } from "@/components/granum/icon"
 import { createClient } from "@/lib/supabase/client"
 import { formatCNPJ } from "@/lib/utils/format"
 import type { Database } from "@/lib/supabase/types"
@@ -31,50 +16,107 @@ type Fornecedor = Database["public"]["Tables"]["fornecedor"]["Row"]
 
 type TipoChave = "material" | "servico" | "locacao" | "outro"
 
-const TIPO_META: Record<
-  TipoChave,
-  { label: string; tone: "info" | "primary" | "warning" | "neutral" }
-> = {
-  material: { label: "Material", tone: "info" },
-  servico: { label: "Serviço", tone: "primary" },
-  locacao: { label: "Locação", tone: "warning" },
-  outro: { label: "Outro", tone: "neutral" },
+interface FornRow {
+  id: string
+  rawId: number
+  nome: string
+  init: string
+  tipo: TipoChave
+  doc: string
+  contato: string
+  email: string
+  fone: string
+  cidade: string
+  obras: number
+  pago: number
+  pendente: number
+  ultima: string
+  status: "ativo" | "inativo"
 }
 
-function normalizeTipo(tipo: string | null): TipoChave {
-  if (!tipo) return "outro"
-  const normalized = tipo.toLowerCase().replace(/[ç]/g, "c").trim()
-  if (normalized.startsWith("mat")) return "material"
-  if (normalized.startsWith("serv")) return "servico"
-  if (normalized.startsWith("loc")) return "locacao"
+const TIPO_META: Record<
+  TipoChave,
+  { label: string; bg: string; fg: string }
+> = {
+  material: {
+    label: "Material",
+    bg: "color-mix(in oklab, var(--info) 18%, var(--surface-muted))",
+    fg: "var(--info-ink)",
+  },
+  servico: {
+    label: "Serviço",
+    bg: "color-mix(in oklab, var(--primary) 18%, var(--surface-muted))",
+    fg: "var(--primary)",
+  },
+  locacao: {
+    label: "Locação",
+    bg: "color-mix(in oklab, var(--warning) 22%, var(--surface-muted))",
+    fg: "var(--warning-ink)",
+  },
+  outro: {
+    label: "Outro",
+    bg: "var(--surface-muted)",
+    fg: "var(--ink-muted)",
+  },
+}
+
+function normalizeTipo(t: string | null): TipoChave {
+  if (!t) return "outro"
+  const n = t.toLowerCase().replace(/[ç]/g, "c").trim()
+  if (n.startsWith("mat")) return "material"
+  if (n.startsWith("serv")) return "servico"
+  if (n.startsWith("loc")) return "locacao"
   return "outro"
 }
 
-function fornecedorCode(id: number) {
-  return `FOR-${String(id).padStart(4, "0")}`
+function getInitials(nome: string): string {
+  const parts = nome.trim().split(/\s+/).filter(Boolean)
+  if (parts.length === 0) return "?"
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase()
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
 }
 
-const TIPO_OPTIONS: SegmentedOption<"todos" | TipoChave>[] = [
-  { value: "todos", label: "Todos" },
-  { value: "material", label: "Material" },
-  { value: "servico", label: "Serviço" },
-  { value: "locacao", label: "Locação" },
-]
+function fmtBRL(v: number): string {
+  if (!v) return "R$ 0"
+  if (v >= 1_000_000)
+    return "R$ " + (v / 1_000_000).toFixed(2).replace(".", ",") + " mi"
+  if (v >= 1000) return "R$ " + Math.round(v / 1000).toLocaleString("pt-BR") + " mil"
+  return "R$ " + v.toLocaleString("pt-BR")
+}
 
-const STATUS_OPTIONS: SegmentedOption<"todos" | "ativos" | "inativos">[] = [
-  { value: "todos", label: "Todos" },
-  { value: "ativos", label: "Ativos" },
-  { value: "inativos", label: "Inativos" },
-]
+function TipoBadge({ t }: { t: TipoChave }) {
+  const m = TIPO_META[t]
+  return (
+    <span
+      className="tipo-tag"
+      style={{
+        background: m.bg,
+        color: m.fg,
+        fontWeight: 500,
+        fontSize: 11,
+      }}
+    >
+      {m.label}
+    </span>
+  )
+}
+
+function StatusBadge({ s }: { s: FornRow["status"] }) {
+  return s === "ativo" ? (
+    <span className="badge dot badge-success">Ativo</span>
+  ) : (
+    <span className="badge dot badge-neutral">Inativo</span>
+  )
+}
 
 export default function FornecedoresPage() {
   const router = useRouter()
-  const [data, setData] = useState<Fornecedor[]>([])
+  const [rows, setRows] = useState<FornRow[]>([])
   const [isLoading, setIsLoading] = useState(true)
-  const [filtroTipo, setFiltroTipo] =
-    useState<"todos" | TipoChave>("todos")
-  const [filtroStatus, setFiltroStatus] =
-    useState<"todos" | "ativos" | "inativos">("todos")
+  const [fTipo, setFTipo] = useState<"todos" | TipoChave>("todos")
+  const [fStatus, setFStatus] = useState<"todos" | "ativo" | "inativo">(
+    "todos"
+  )
   const [busca, setBusca] = useState("")
   const [formOpen, setFormOpen] = useState(false)
 
@@ -85,13 +127,30 @@ export default function FornecedoresPage() {
       .from("fornecedor")
       .select("*")
       .order("nome")
-
     if (error) {
-      toast.error("Erro ao carregar fornecedores: " + error.message)
+      toast.error("Erro: " + error.message)
       setIsLoading(false)
       return
     }
-    setData(data ?? [])
+    setRows(
+      (data ?? []).map((f: Fornecedor) => ({
+        id: `FOR-${String(f.id_fornecedor).padStart(4, "0")}`,
+        rawId: f.id_fornecedor,
+        nome: f.nome,
+        init: getInitials(f.nome),
+        tipo: normalizeTipo(f.tipo),
+        doc: f.cnpj ? formatCNPJ(f.cnpj) : "—",
+        contato: f.contato ?? "",
+        email: f.email ?? "",
+        fone: "",
+        cidade: "",
+        obras: 0,
+        pago: 0,
+        pendente: 0,
+        ultima: "—",
+        status: f.ativo === false ? "inativo" : "ativo",
+      }))
+    )
     setIsLoading(false)
   }, [])
 
@@ -101,230 +160,263 @@ export default function FornecedoresPage() {
 
   const filtered = useMemo(
     () =>
-      data.filter((f) => {
-        const tipo = normalizeTipo(f.tipo)
-        if (filtroTipo !== "todos" && tipo !== filtroTipo) return false
-        if (filtroStatus === "ativos" && f.ativo === false) return false
-        if (filtroStatus === "inativos" && f.ativo !== false) return false
-        if (busca) {
-          const q = busca.toLowerCase()
-          const haystack = [f.nome, f.cnpj, f.email, f.contato]
-            .filter(Boolean)
-            .join(" ")
-            .toLowerCase()
-          if (!haystack.includes(q)) return false
-        }
+      rows.filter((f) => {
+        if (fTipo !== "todos" && f.tipo !== fTipo) return false
+        if (fStatus !== "todos" && f.status !== fStatus) return false
+        if (
+          busca &&
+          !(f.nome + f.doc + f.email).toLowerCase().includes(busca.toLowerCase())
+        )
+          return false
         return true
       }),
-    [data, filtroTipo, filtroStatus, busca]
+    [rows, fTipo, fStatus, busca]
   )
 
-  const total = data.length
-  const ativos = data.filter((f) => f.ativo !== false).length
-  const inativos = total - ativos
-  const matCount = data.filter((f) => normalizeTipo(f.tipo) === "material").length
-  const servCount = data.filter((f) => normalizeTipo(f.tipo) === "servico").length
-  const locCount = data.filter((f) => normalizeTipo(f.tipo) === "locacao").length
+  const totalPago = rows.reduce((a, f) => a + f.pago, 0)
+  const totalPend = rows.reduce((a, f) => a + f.pendente, 0)
+  const ativos = rows.filter((f) => f.status === "ativo").length
+  const comPago = rows.filter((f) => f.pago > 0).length
 
   return (
-    <div className="space-y-6">
-      <PageHeader
-        eyebrow="Cadastros"
-        title="Fornecedores"
-        subtitle={`${total} fornecedor${total === 1 ? "" : "es"} cadastrado${total === 1 ? "" : "s"} · ${ativos} ativo${ativos === 1 ? "" : "s"}`}
-        actions={
-          <>
-            <Button variant="ghost" size="sm" disabled>
-              <Upload data-icon="inline-start" />
+    <>
+      <div className="page-head">
+        <div className="page-head-top">
+          <div className="page-head-title">
+            <div className="obra-id">Cadastros</div>
+            <h1>Fornecedores</h1>
+            <div className="subtitle">
+              {rows.length} fornecedores cadastrados · {ativos} ativos
+            </div>
+          </div>
+          <div className="page-head-actions">
+            <button className="btn btn-ghost" type="button" disabled>
+              <Icon name="upload" />
               Importar
-            </Button>
-            <Button variant="outline" size="sm" disabled>
-              <Download data-icon="inline-start" />
+            </button>
+            <button className="btn btn-secondary" type="button" disabled>
+              <Icon name="download" />
               Exportar
-            </Button>
-            <Button size="sm" onClick={() => setFormOpen(true)}>
-              <Plus data-icon="inline-start" />
+            </button>
+            <button
+              className="btn btn-primary"
+              type="button"
+              onClick={() => setFormOpen(true)}
+            >
+              <Icon name="plus" />
               Novo fornecedor
-            </Button>
-          </>
-        }
-      />
+            </button>
+          </div>
+        </div>
+      </div>
 
-      <KpiGrid cols={4}>
-        <KpiCard
-          label="Total de fornecedores"
-          value={total}
-          sub={`${ativos} ativos · ${inativos} inativos`}
-          icon={<Truck />}
-        />
-        <KpiCard
-          tone="info"
-          label="Material"
-          value={matCount}
-          sub={`${total ? Math.round((matCount * 100) / total) : 0}% do total`}
-        />
-        <KpiCard
-          tone="primary"
-          label="Serviço"
-          value={servCount}
-          sub={`${total ? Math.round((servCount * 100) / total) : 0}% do total`}
-        />
-        <KpiCard
-          tone="warning"
-          label="Locação"
-          value={locCount}
-          sub={`${total ? Math.round((locCount * 100) / total) : 0}% do total`}
-        />
-      </KpiGrid>
+      <div className="list-kpis">
+        <div className="list-kpi">
+          <div className="list-kpi-label">Total de fornecedores</div>
+          <div className="list-kpi-value">{rows.length}</div>
+          <div className="list-kpi-sub">
+            <Icon name="truck" />
+            {ativos} ativos · {rows.length - ativos} inativos
+          </div>
+        </div>
+        <div className="list-kpi">
+          <div className="list-kpi-label">Pago (12 meses)</div>
+          <div className="list-kpi-value fin-pos">{fmtBRL(totalPago)}</div>
+          <div className="list-kpi-sub">
+            <Icon name="dollar" />
+            Soma de todos os pagamentos
+          </div>
+        </div>
+        <div className="list-kpi">
+          <div className="list-kpi-label">Pendente</div>
+          <div
+            className={
+              "list-kpi-value " + (totalPend > 0 ? "fin-neg" : "fin-pos")
+            }
+          >
+            {fmtBRL(totalPend)}
+          </div>
+          <div className="list-kpi-sub">
+            <Icon name="clock" />A pagar em até 30 dias
+          </div>
+        </div>
+        <div className="list-kpi">
+          <div className="list-kpi-label">Ticket médio</div>
+          <div className="list-kpi-value fin-pos">
+            {fmtBRL(comPago > 0 ? Math.round(totalPago / comPago) : 0)}
+          </div>
+          <div className="list-kpi-sub">
+            <Icon name="chart" />
+            Por fornecedor ativo
+          </div>
+        </div>
+      </div>
 
-      <div className="overflow-hidden rounded-md border border-border bg-card">
-        <div className="flex flex-col gap-3 border-b border-border p-4 lg:flex-row lg:items-center lg:justify-between">
-          <div className="relative max-w-md flex-1">
-            <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              type="search"
+      <div className="card" style={{ marginTop: 18 }}>
+        <div className="card-head list-toolbar">
+          <div className="list-search">
+            <Icon name="search" />
+            <input
+              type="text"
               placeholder="Buscar por nome, CNPJ ou e-mail…"
               value={busca}
               onChange={(e) => setBusca(e.target.value)}
-              className="h-9 pl-9"
             />
           </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <SegmentedControl
-              value={filtroTipo}
-              onValueChange={setFiltroTipo}
-              options={TIPO_OPTIONS}
-              ariaLabel="Filtro de tipo"
-            />
-            <SegmentedControl
-              value={filtroStatus}
-              onValueChange={setFiltroStatus}
-              options={STATUS_OPTIONS}
-              ariaLabel="Filtro de status"
-            />
+          <div className="list-filters">
+            <div className="seg">
+              {(
+                [
+                  { id: "todos", label: "Todos" },
+                  { id: "material", label: "Material" },
+                  { id: "servico", label: "Serviço" },
+                  { id: "locacao", label: "Locação" },
+                ] as const
+              ).map((t) => (
+                <button
+                  key={t.id}
+                  type="button"
+                  className={"seg-btn" + (fTipo === t.id ? " active" : "")}
+                  onClick={() => setFTipo(t.id)}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
+            <div className="seg">
+              {(
+                [
+                  { id: "todos", label: "Todos" },
+                  { id: "ativo", label: "Ativos" },
+                  { id: "inativo", label: "Inativos" },
+                ] as const
+              ).map((t) => (
+                <button
+                  key={t.id}
+                  type="button"
+                  className={"seg-btn" + (fStatus === t.id ? " active" : "")}
+                  onClick={() => setFStatus(t.id)}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="min-w-full">
-            <thead>
-              <tr className="border-b border-border bg-muted/60 text-[11px] uppercase tracking-wider text-muted-foreground">
-                <th className="px-5 py-2.5 text-left font-semibold">Fornecedor</th>
-                <th className="px-5 py-2.5 text-left font-semibold">CNPJ</th>
-                <th className="px-5 py-2.5 text-left font-semibold">Contato</th>
-                <th className="px-5 py-2.5 text-left font-semibold">Tipo</th>
-                <th className="px-5 py-2.5 text-left font-semibold">Status</th>
-                <th className="w-12 px-2 py-2.5"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {isLoading ? (
-                <tr>
-                  <td
-                    colSpan={6}
-                    className="px-5 py-12 text-center text-sm text-muted-foreground"
+        <div className="list-table">
+          <div className="list-thead">
+            <div>Fornecedor</div>
+            <div>Documento</div>
+            <div>Contato</div>
+            <div>Tipo</div>
+            <div className="num">Pago · Pendente</div>
+            <div>Status</div>
+            <div></div>
+          </div>
+          {isLoading ? (
+            <div
+              style={{
+                padding: "60px 24px",
+                textAlign: "center",
+                color: "var(--ink-muted)",
+                fontSize: 13.5,
+              }}
+            >
+              Carregando…
+            </div>
+          ) : filtered.length === 0 ? (
+            <div
+              style={{
+                padding: "60px 24px",
+                textAlign: "center",
+                color: "var(--ink-muted)",
+                fontSize: 13.5,
+              }}
+            >
+              {rows.length === 0
+                ? "Nenhum fornecedor cadastrado ainda."
+                : "Nenhum fornecedor encontrado com esses filtros."}
+            </div>
+          ) : (
+            filtered.map((f) => (
+              <div
+                className="list-row2"
+                key={f.id}
+                onClick={() => router.push(`/fornecedores/${f.rawId}`)}
+                style={{ cursor: "pointer" }}
+              >
+                <div className="list-cell-name">
+                  <span className="avatar-sm avatar-pj">{f.init}</span>
+                  <div className="list-name-block">
+                    <div className="nm">
+                      <a>{f.nome}</a>
+                    </div>
+                    <div className="sub">{f.id}</div>
+                  </div>
+                </div>
+                <div className="list-cell-doc">
+                  <div className="tipo-tag">CNPJ</div>
+                  <div className="mono">{f.doc}</div>
+                </div>
+                <div className="list-cell-contact">
+                  <div className="em">{f.contato || "—"}</div>
+                  {f.email ? <div className="sub">{f.email}</div> : null}
+                </div>
+                <div>
+                  <TipoBadge t={f.tipo} />
+                  {f.obras > 0 ? (
+                    <div className="sub" style={{ marginTop: 4 }}>
+                      {f.obras} obra{f.obras !== 1 ? "s" : ""}
+                    </div>
+                  ) : null}
+                </div>
+                <div className="list-cell-num">
+                  <div
+                    className={
+                      "val mono " + (f.pago > 0 ? "fin-pos" : "fin-neg")
+                    }
                   >
-                    Carregando fornecedores…
-                  </td>
-                </tr>
-              ) : filtered.length === 0 ? (
-                <tr>
-                  <td
-                    colSpan={6}
-                    className="px-5 py-16 text-center text-sm text-muted-foreground"
+                    {fmtBRL(f.pago)}
+                  </div>
+                  <div
+                    className={"sub mono " + (f.pendente > 0 ? "fin-neg" : "")}
+                    style={{ fontVariantNumeric: "tabular-nums" }}
                   >
-                    {data.length === 0
-                      ? "Nenhum fornecedor cadastrado ainda."
-                      : "Nenhum fornecedor encontrado com esses filtros."}
-                  </td>
-                </tr>
-              ) : (
-                filtered.map((f) => {
-                  const tipo = normalizeTipo(f.tipo)
-                  const tipoMeta = TIPO_META[tipo]
-                  const ativo = f.ativo !== false
-                  return (
-                    <tr
-                      key={f.id_fornecedor}
-                      className="cursor-pointer border-b border-border transition-colors last:border-b-0 hover:bg-muted/40"
-                      onClick={() =>
-                        router.push(`/fornecedores/${f.id_fornecedor}`)
-                      }
-                    >
-                      <td className="px-5 py-3">
-                        <div className="flex items-center gap-3">
-                          <Avatar variant="pj" name={f.nome} size="sm" />
-                          <div className="min-w-0">
-                            <div className="truncate text-[13.5px] font-medium text-foreground">
-                              {f.nome}
-                            </div>
-                            <div className="text-[11.5px] text-muted-foreground tabular-nums">
-                              {fornecedorCode(f.id_fornecedor)}
-                            </div>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-5 py-3">
-                        <CategoryChip tone="neutral" className="mb-1">
-                          CNPJ
-                        </CategoryChip>
-                        <div className="mono text-[12.5px] text-foreground tabular-nums">
-                          {f.cnpj ? formatCNPJ(f.cnpj) : "—"}
-                        </div>
-                      </td>
-                      <td className="px-5 py-3">
-                        <div className="text-[13px] text-foreground">
-                          {f.contato ?? (
-                            <span className="text-muted-foreground">—</span>
-                          )}
-                        </div>
-                        {f.email ? (
-                          <div className="mt-0.5 text-[11.5px] text-muted-foreground">
-                            {f.email}
-                          </div>
-                        ) : null}
-                      </td>
-                      <td className="px-5 py-3">
-                        <CategoryChip tone={tipoMeta.tone}>
-                          {tipoMeta.label}
-                        </CategoryChip>
-                      </td>
-                      <td className="px-5 py-3">
-                        {ativo ? (
-                          <CategoryChip tone="success">
-                            <span className="size-1.5 rounded-full bg-[var(--success)]" />
-                            Ativo
-                          </CategoryChip>
-                        ) : (
-                          <CategoryChip tone="neutral">
-                            <span className="size-1.5 rounded-full bg-muted-foreground/60" />
-                            Inativo
-                          </CategoryChip>
-                        )}
-                      </td>
-                      <td className="px-2 py-3 text-right">
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          onClick={(e) => e.stopPropagation()}
-                          aria-label="Mais ações"
-                        >
-                          <MoreHorizontal />
-                        </Button>
-                      </td>
-                    </tr>
-                  )
-                })
-              )}
-            </tbody>
-          </table>
+                    pend. {fmtBRL(f.pendente)}
+                  </div>
+                </div>
+                <div className="list-cell-status">
+                  <StatusBadge s={f.status} />
+                </div>
+                <div className="list-cell-actions">
+                  <button
+                    type="button"
+                    className="icon-btn"
+                    onClick={(e) => e.stopPropagation()}
+                    aria-label="Mais ações"
+                  >
+                    <Icon name="more" />
+                  </button>
+                </div>
+              </div>
+            ))
+          )}
         </div>
 
-        <div className="flex items-center justify-between border-t border-border px-5 py-3 text-[12.5px] text-muted-foreground">
-          <span>
-            Mostrando {filtered.length} de {total} fornecedor
-            {total !== 1 ? "es" : ""}
-          </span>
+        <div className="list-foot">
+          <div className="sub">
+            Mostrando {filtered.length} de {rows.length} fornecedores
+          </div>
+          <div className="list-pag">
+            <button className="icon-btn" disabled>
+              <Icon name="chevronLeft" />
+            </button>
+            <span className="mono">1 / 1</span>
+            <button className="icon-btn" disabled>
+              <Icon name="chevronRight" />
+            </button>
+          </div>
         </div>
       </div>
 
@@ -333,6 +425,6 @@ export default function FornecedoresPage() {
         onOpenChange={setFormOpen}
         onSuccess={load}
       />
-    </div>
+    </>
   )
 }
