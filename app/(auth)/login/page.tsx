@@ -1,13 +1,15 @@
 "use client"
 
+import Image from "next/image"
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { createClient } from "@/lib/supabase/client"
+import { AlertCircle, Loader2, Lock, Mail } from "lucide-react"
+
 import { Button } from "@/components/ui/button"
+import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Building2, Loader2 } from "lucide-react"
+import { createClient } from "@/lib/supabase/client"
 
 export default function LoginPage() {
   const router = useRouter()
@@ -38,57 +40,100 @@ export default function LoginPage() {
   }
 
   return (
-    <Card className="w-full max-w-md">
-      <CardHeader className="text-center">
-        <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-lg bg-blue-600">
-          <Building2 className="h-6 w-6 text-white" />
+    <div className="w-full max-w-[400px] space-y-6">
+      <div className="flex flex-col items-center gap-3 text-center">
+        <div className="flex h-14 items-center justify-center rounded-2xl bg-[var(--granum-azul)] px-5 shadow-md">
+          <Image
+            src="/granum-logo-branco.png"
+            alt="Granum"
+            width={120}
+            height={32}
+            className="h-7 w-auto"
+            priority
+          />
         </div>
-        <CardTitle className="text-2xl">Gestão de Obras</CardTitle>
-        <CardDescription>
-          Faça login para acessar o sistema
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="email">E-mail</Label>
-            <Input
-              id="email"
-              type="email"
-              placeholder="seu@email.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
+        <div>
+          <h1 className="text-[20px] font-semibold tracking-tight text-foreground">
+            Bem-vindo de volta
+          </h1>
+          <p className="text-[13px] text-muted-foreground">
+            Faça login para acessar o sistema de gestão de obras.
+          </p>
+        </div>
+      </div>
+
+      <Card className="shadow-md">
+        <CardContent className="py-6">
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="space-y-1.5">
+              <Label htmlFor="email" className="text-[12px] font-semibold uppercase tracking-wider text-muted-foreground">
+                E-mail
+              </Label>
+              <div className="relative">
+                <Mail className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  id="email"
+                  type="email"
+                  placeholder="seu@email.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                  disabled={isLoading}
+                  className="pl-9"
+                  autoComplete="email"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="password" className="text-[12px] font-semibold uppercase tracking-wider text-muted-foreground">
+                Senha
+              </Label>
+              <div className="relative">
+                <Lock className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  id="password"
+                  type="password"
+                  placeholder="••••••••"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  disabled={isLoading}
+                  className="pl-9"
+                  autoComplete="current-password"
+                />
+              </div>
+            </div>
+
+            {error ? (
+              <div className="flex items-start gap-2 rounded-md border border-destructive/30 bg-[var(--danger-soft)] px-3 py-2 text-[12.5px] text-[var(--danger-ink)]">
+                <AlertCircle className="size-4 shrink-0" />
+                <span>{error}</span>
+              </div>
+            ) : null}
+
+            <Button
+              type="submit"
+              size="lg"
+              className="w-full"
               disabled={isLoading}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="password">Senha</Label>
-            <Input
-              id="password"
-              type="password"
-              placeholder="••••••••"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              disabled={isLoading}
-            />
-          </div>
-          {error && (
-            <p className="text-sm text-red-600">{error}</p>
-          )}
-          <Button type="submit" className="w-full" disabled={isLoading}>
-            {isLoading ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Entrando...
-              </>
-            ) : (
-              "Entrar"
-            )}
-          </Button>
-        </form>
-      </CardContent>
-    </Card>
+            >
+              {isLoading ? (
+                <>
+                  <Loader2 className="size-4 animate-spin" />
+                  Entrando…
+                </>
+              ) : (
+                "Entrar"
+              )}
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
+
+      <p className="text-center text-[11.5px] text-muted-foreground">
+        Granum · Sistema de gestão de obras
+      </p>
+    </div>
   )
 }
