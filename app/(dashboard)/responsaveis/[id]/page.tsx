@@ -1,69 +1,115 @@
 "use client"
 
+// Port literal de granum-design/responsavel-perfil-app.jsx + ResponsavelPerfil.html
+
 import Link from "next/link"
 import { useEffect, useState } from "react"
-import { useParams, useRouter } from "next/navigation"
-import {
-  ArrowLeft,
-  Briefcase,
-  Building,
-  CalendarDays,
-  ClipboardList,
-  Mail,
-  MapPin,
-  Pencil,
-  Phone,
-  User,
-} from "lucide-react"
+import { useParams } from "next/navigation"
 
 import { ResponsavelForm } from "@/components/forms/responsavel-form"
-import { Avatar } from "@/components/shared/avatar"
-import { CategoryChip } from "@/components/shared/category-chip"
-import { KpiCard, KpiGrid } from "@/components/shared/kpi-card"
-import { PageHeader } from "@/components/shared/page-header"
-import { StatusBadge } from "@/components/shared/status-badge"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
-import { OBRA_STATUS, ROLES, TAREFA_STATUS } from "@/lib/constants"
+import { Icon } from "@/components/granum/icon"
+import { ROLES, TAREFA_STATUS } from "@/lib/constants"
 import { createClient } from "@/lib/supabase/client"
-import { cn } from "@/lib/utils"
 import { formatDate } from "@/lib/utils/format"
 import type { Database } from "@/lib/supabase/types"
 
 type Responsavel = Database["public"]["Tables"]["responsavel"]["Row"]
 
-const PERFIL_TONE: Record<
-  string,
-  "primary" | "info" | "success" | "warning" | "neutral"
-> = {
-  diretor: "primary",
-  arquiteta: "info",
-  engenheiro: "success",
-  mestre_obra: "warning",
-  financeiro: "neutral",
+interface ObraRow {
+  id: string
+  rawId: number
+  nome: string
+  status: string
+}
+interface TarefaRow {
+  id: number
+  nome: string
+  status: string
 }
 
-function responsavelCode(id: number) {
-  return `RSP-${String(id).padStart(3, "0")}`
+function getInitials(nome: string): string {
+  const parts = nome.trim().split(/\s+/).filter(Boolean)
+  if (parts.length === 0) return "?"
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase()
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
+}
+
+const STATUS_OBRA_META: Record<
+  string,
+  { label: string; bg: string; fg: string; dot: string }
+> = {
+  em_andamento: {
+    label: "Em andamento",
+    bg: "var(--info-soft)",
+    fg: "var(--info-ink)",
+    dot: "var(--info)",
+  },
+  planejamento: {
+    label: "Planejamento",
+    bg: "var(--surface-muted)",
+    fg: "var(--ink-muted)",
+    dot: "var(--planned)",
+  },
+  pausada: {
+    label: "Pausada",
+    bg: "var(--warning-soft)",
+    fg: "var(--warning-ink)",
+    dot: "var(--warning)",
+  },
+  concluida: {
+    label: "Concluída",
+    bg: "var(--success-soft)",
+    fg: "var(--success-ink)",
+    dot: "var(--success)",
+  },
+  cancelada: {
+    label: "Cancelada",
+    bg: "var(--danger-soft)",
+    fg: "var(--danger-ink)",
+    dot: "var(--danger)",
+  },
+}
+
+function ObraStatusBadge({ s }: { s: string }) {
+  const m = STATUS_OBRA_META[s] ?? STATUS_OBRA_META.planejamento
+  return (
+    <span
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 6,
+        padding: "2px 8px",
+        borderRadius: 999,
+        background: m.bg,
+        color: m.fg,
+        fontSize: 11,
+        fontWeight: 500,
+      }}
+    >
+      <span
+        style={{
+          width: 6,
+          height: 6,
+          borderRadius: "50%",
+          background: m.dot,
+        }}
+      />
+      {m.label}
+    </span>
+  )
 }
 
 export default function ResponsavelPerfilPage() {
   const params = useParams()
-  const router = useRouter()
   const [responsavel, setResponsavel] = useState<Responsavel | null>(null)
   const [perfilCodigo, setPerfilCodigo] = useState<string>("")
-  const [obras, setObras] = useState<
-    { id_obra: number; nome: string; status: string }[]
-  >([])
-  const [tarefas, setTarefas] = useState<
-    { id_tarefa: number; nome: string; status: string }[]
-  >([])
+  const [obras, setObras] = useState<ObraRow[]>([])
+  const [tarefas, setTarefas] = useState<TarefaRow[]>([])
   const [formOpen, setFormOpen] = useState(false)
 
   async function load() {
     const supabase = createClient()
     const id = Number(params.id)
-
     const { data: r } = await supabase
       .from("responsavel")
       .select("*")
@@ -85,17 +131,25 @@ export default function ResponsavelPerfilPage() {
       .select("id_obra, nome, status")
       .eq("id_responsavel", id)
     setObras(
-      (o ?? []) as { id_obra: number; nome: string; status: string }[]
+      (o ?? []).map((x) => ({
+        id: `OBR-${String(x.id_obra).padStart(4, "0")}`,
+        rawId: x.id_obra,
+        nome: x.nome,
+        status: x.status ?? "planejamento",
+      }))
     )
 
     const { data: t } = await supabase
       .from("tarefa")
       .select("id_tarefa, nome, status")
       .eq("id_responsavel", id)
-      .order("created_at", { ascending: false })
       .limit(20)
     setTarefas(
-      (t ?? []) as { id_tarefa: number; nome: string; status: string }[]
+      (t ?? []).map((x) => ({
+        id: x.id_tarefa,
+        nome: x.nome,
+        status: x.status ?? "pendente",
+      }))
     )
   }
 
@@ -106,190 +160,247 @@ export default function ResponsavelPerfilPage() {
 
   if (!responsavel) {
     return (
-      <div className="flex h-64 items-center justify-center text-sm text-muted-foreground">
+      <div
+        style={{
+          padding: "60px 24px",
+          textAlign: "center",
+          color: "var(--ink-muted)",
+        }}
+      >
         Carregando responsável…
       </div>
     )
   }
 
+  const code = `RSP-${String(responsavel.id_responsavel).padStart(3, "0")}`
   const perfilLabel =
     (ROLES as Record<string, string>)[perfilCodigo] ?? perfilCodigo
-  const tone = PERFIL_TONE[perfilCodigo] ?? "neutral"
   const tarefasAtivas = tarefas.filter(
     (t) => t.status !== "concluida" && t.status !== "cancelada"
   ).length
-  const obrasAtivas = obras.filter((o) =>
-    ["em_andamento", "planejamento"].includes(o.status)
-  ).length
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-2 text-[12.5px] text-muted-foreground">
-        <Link
-          href="/responsaveis"
-          className="inline-flex items-center gap-1 hover:text-foreground"
-        >
-          <ArrowLeft className="size-3.5" />
-          Responsáveis
-        </Link>
-        <span>·</span>
-        <span className="mono tabular-nums">
-          {responsavelCode(responsavel.id_responsavel)}
-        </span>
+    <>
+      <div className="profile-head">
+        <div className="profile-avatar">{getInitials(responsavel.nome)}</div>
+        <div className="profile-head-info">
+          <div className="obra-id">
+            {code} · {perfilLabel}
+          </div>
+          <h1>{responsavel.nome}</h1>
+          <div className="badges">
+            {responsavel.ativo === false ? (
+              <span className="badge dot badge-neutral">Inativo</span>
+            ) : (
+              <span className="badge dot badge-success">Ativo</span>
+            )}
+            {responsavel.cargo ? (
+              <span style={{ fontSize: 12.5, color: "var(--ink-muted)" }}>
+                {responsavel.cargo}
+              </span>
+            ) : null}
+            {responsavel.departamento ? (
+              <>
+                <span style={{ fontSize: 12.5, color: "var(--ink-soft)" }}>
+                  ·
+                </span>
+                <span style={{ fontSize: 12.5, color: "var(--ink-muted)" }}>
+                  {responsavel.departamento}
+                </span>
+              </>
+            ) : null}
+          </div>
+        </div>
+        <div className="profile-head-actions">
+          <button
+            className="btn btn-ghost"
+            type="button"
+            onClick={() => setFormOpen(true)}
+          >
+            <Icon name="edit" />
+            Editar dados
+          </button>
+          <Link href="/responsaveis" className="btn btn-secondary">
+            <Icon name="external" />
+            Voltar
+          </Link>
+        </div>
       </div>
 
-      <Card>
-        <CardContent className="py-6">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-center gap-4">
-              <Avatar variant="pf" name={responsavel.nome} size="xl" />
-              <div className="min-w-0">
-                <div className="flex items-center gap-2">
-                  <CategoryChip tone={tone}>
-                    {perfilLabel || "Sem perfil"}
-                  </CategoryChip>
-                  {responsavel.ativo === false ? (
-                    <CategoryChip tone="neutral">Inativo</CategoryChip>
-                  ) : (
-                    <CategoryChip tone="success">Ativo</CategoryChip>
-                  )}
-                </div>
-                <h2 className="mt-1 text-[20px] font-semibold tracking-tight text-foreground">
-                  {responsavel.nome}
-                </h2>
-                <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12.5px] text-muted-foreground">
-                  {responsavel.cargo ? (
-                    <span className="inline-flex items-center gap-1">
-                      <Briefcase className="size-3.5" />
-                      {responsavel.cargo}
-                    </span>
-                  ) : null}
-                  {responsavel.departamento ? (
-                    <span className="inline-flex items-center gap-1">
-                      <MapPin className="size-3.5" />
-                      {responsavel.departamento}
-                    </span>
-                  ) : null}
-                  {responsavel.email ? (
-                    <span className="inline-flex items-center gap-1">
-                      <Mail className="size-3.5" />
-                      {responsavel.email}
-                    </span>
-                  ) : null}
-                  {responsavel.telefone ? (
-                    <span className="mono inline-flex items-center gap-1 tabular-nums">
-                      <Phone className="size-3.5" />
-                      {responsavel.telefone}
-                    </span>
-                  ) : null}
+      <div className="profile-grid">
+        <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+          <div className="detail-card">
+            <div className="detail-card-head">
+              <div>
+                <h3>Resumo</h3>
+                <div className="sub">
+                  Obras supervisionadas e tarefas atribuídas
                 </div>
               </div>
             </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setFormOpen(true)}
-            >
-              <Pencil data-icon="inline-start" />
-              Editar
-            </Button>
+            <div className="detail-stats">
+              <div className="detail-stat">
+                <div className="lbl">Obras</div>
+                <div className="val">{obras.length}</div>
+                <div className="sub">Vinculadas</div>
+              </div>
+              <div className="detail-stat">
+                <div className="lbl">Tarefas</div>
+                <div className="val">{tarefas.length}</div>
+                <div className="sub">{tarefasAtivas} em aberto</div>
+              </div>
+              <div className="detail-stat">
+                <div className="lbl">Perfil</div>
+                <div className="val" style={{ fontSize: 18 }}>
+                  {perfilLabel}
+                </div>
+                <div className="sub">Permissão</div>
+              </div>
+              <div className="detail-stat">
+                <div className="lbl">Admissão</div>
+                <div className="val mono" style={{ fontSize: 16 }}>
+                  {responsavel.data_admissao
+                    ? formatDate(responsavel.data_admissao)
+                    : "—"}
+                </div>
+                <div className="sub">Data de entrada</div>
+              </div>
+            </div>
           </div>
-        </CardContent>
-      </Card>
 
-      <KpiGrid cols={4}>
-        <KpiCard
-          tone={tone}
-          label="Perfil"
-          value={perfilLabel || "—"}
-          sub="Permissão atual"
-          icon={<User />}
-        />
-        <KpiCard
-          tone="info"
-          label="Obras vinculadas"
-          value={obras.length}
-          sub={`${obrasAtivas} ativa${obrasAtivas === 1 ? "" : "s"}`}
-          icon={<Building />}
-        />
-        <KpiCard
-          label="Tarefas"
-          value={tarefas.length}
-          sub={`${tarefasAtivas} em aberto`}
-          icon={<ClipboardList />}
-        />
-        <KpiCard
-          label="Admissão"
-          value={
-            responsavel.data_admissao
-              ? formatDate(responsavel.data_admissao)
-              : "—"
-          }
-          sub="Data de entrada"
-          icon={<CalendarDays />}
-        />
-      </KpiGrid>
-
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Card>
-          <CardContent className="space-y-3 py-5">
-            <h3 className="text-[15px] font-semibold text-foreground">
-              Obras atribuídas
-            </h3>
-            {obras.length === 0 ? (
-              <p className="py-6 text-center text-[13px] text-muted-foreground">
-                Nenhuma obra atribuída.
-              </p>
-            ) : (
-              <div className="space-y-1.5">
-                {obras.map((o) => (
-                  <button
-                    key={o.id_obra}
-                    onClick={() => router.push(`/obras/${o.id_obra}`)}
-                    className="flex w-full items-center justify-between gap-3 rounded-md border border-border px-3 py-2.5 text-left transition-colors hover:bg-muted/30"
-                  >
-                    <span className="truncate text-[13px] font-medium text-foreground">
-                      {o.nome}
-                    </span>
-                    <StatusBadge status={o.status} statusMap={OBRA_STATUS} />
-                  </button>
-                ))}
+          <div className="detail-card">
+            <div className="detail-card-head">
+              <div>
+                <h3>Obras vinculadas</h3>
               </div>
-            )}
-          </CardContent>
-        </Card>
+            </div>
+            <div className="detail-card-body flush">
+              {obras.length === 0 ? (
+                <div
+                  style={{
+                    padding: "32px 20px",
+                    textAlign: "center",
+                    color: "var(--ink-muted)",
+                    fontSize: 13.5,
+                  }}
+                >
+                  Nenhuma obra atribuída.
+                </div>
+              ) : (
+                <div className="detail-list">
+                  {obras.map((o) => (
+                    <Link
+                      href={`/obras/${o.rawId}`}
+                      className="detail-list-item"
+                      key={o.id}
+                    >
+                      <div className="li-main">
+                        <div className="li-title">
+                          <a>{o.nome}</a>
+                        </div>
+                        <div className="li-sub">
+                          <span>{o.id}</span>
+                          <span>·</span>
+                          <ObraStatusBadge s={o.status} />
+                        </div>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
 
-        <Card>
-          <CardContent className="space-y-3 py-5">
-            <h3 className="text-[15px] font-semibold text-foreground">
-              Tarefas recentes
-            </h3>
-            {tarefas.length === 0 ? (
-              <p className="py-6 text-center text-[13px] text-muted-foreground">
-                Nenhuma tarefa atribuída.
-              </p>
-            ) : (
-              <div className="space-y-1.5">
-                {tarefas.slice(0, 8).map((t) => (
-                  <div
-                    key={t.id_tarefa}
-                    className={cn(
-                      "flex items-center justify-between gap-3 rounded-md border border-border px-3 py-2 hover:bg-muted/30"
-                    )}
-                  >
-                    <span className="truncate text-[13px] text-foreground">
-                      {t.nome}
-                    </span>
-                    <StatusBadge
-                      status={t.status}
-                      statusMap={TAREFA_STATUS}
-                    />
+          <div className="detail-card">
+            <div className="detail-card-head">
+              <div>
+                <h3>Tarefas atribuídas</h3>
+              </div>
+            </div>
+            <div className="detail-card-body flush">
+              {tarefas.length === 0 ? (
+                <div
+                  style={{
+                    padding: "32px 20px",
+                    textAlign: "center",
+                    color: "var(--ink-muted)",
+                    fontSize: 13.5,
+                  }}
+                >
+                  Nenhuma tarefa.
+                </div>
+              ) : (
+                <div className="detail-list">
+                  {tarefas.map((t) => {
+                    const meta = TAREFA_STATUS[
+                      t.status as keyof typeof TAREFA_STATUS
+                    ] as { label: string } | undefined
+                    return (
+                      <div className="detail-list-item" key={t.id}>
+                        <div className="li-main">
+                          <div className="li-title">
+                            <a>{t.nome}</a>
+                          </div>
+                          <div className="li-sub">
+                            <span>{meta?.label ?? t.status}</span>
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+          <div className="detail-card">
+            <div className="detail-card-head">
+              <h3>Dados cadastrais</h3>
+              <button
+                type="button"
+                className="icon-btn"
+                title="Editar"
+                onClick={() => setFormOpen(true)}
+              >
+                <Icon name="edit" />
+              </button>
+            </div>
+            <div className="detail-card-body flush">
+              <div className="quick-info">
+                {responsavel.email ? (
+                  <div className="quick-info-row">
+                    <div className="lbl">E-mail</div>
+                    <div className="val">{responsavel.email}</div>
                   </div>
-                ))}
+                ) : null}
+                {responsavel.telefone ? (
+                  <div className="quick-info-row">
+                    <div className="lbl">Telefone</div>
+                    <div className="val mono">{responsavel.telefone}</div>
+                  </div>
+                ) : null}
+                {responsavel.cargo ? (
+                  <div className="quick-info-row">
+                    <div className="lbl">Cargo</div>
+                    <div className="val">{responsavel.cargo}</div>
+                  </div>
+                ) : null}
+                {responsavel.departamento ? (
+                  <div className="quick-info-row">
+                    <div className="lbl">Depto</div>
+                    <div className="val">{responsavel.departamento}</div>
+                  </div>
+                ) : null}
+                <div className="quick-info-row">
+                  <div className="lbl">Perfil</div>
+                  <div className="val">{perfilLabel}</div>
+                </div>
               </div>
-            )}
-          </CardContent>
-        </Card>
+            </div>
+          </div>
+        </div>
       </div>
 
       <ResponsavelForm
@@ -298,6 +409,6 @@ export default function ResponsavelPerfilPage() {
         responsavel={responsavel}
         onSuccess={load}
       />
-    </div>
+    </>
   )
 }
