@@ -1,27 +1,11 @@
 "use client"
 
+// Port literal de granum-design/plano-contas-app.jsx + PlanoContas.html
+
 import { useCallback, useEffect, useMemo, useState } from "react"
-import {
-  ArrowDown,
-  ArrowUp,
-  ChevronDown,
-  ChevronRight,
-  FileText,
-  Layers,
-  MoreHorizontal,
-  Plus,
-  Search,
-  TreePine,
-} from "lucide-react"
 import { toast } from "sonner"
 
-import { CategoryChip } from "@/components/shared/category-chip"
-import { KpiCard, KpiGrid } from "@/components/shared/kpi-card"
-import { PageHeader } from "@/components/shared/page-header"
-import {
-  SegmentedControl,
-  type SegmentedOption,
-} from "@/components/shared/segmented-control"
+import { Icon } from "@/components/granum/icon"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
@@ -40,124 +24,76 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { createClient } from "@/lib/supabase/client"
-import { cn } from "@/lib/utils"
 
-interface PlanoConta {
-  id_plano: number
-  codigo: string | null
-  nome: string
-  id_pai: number | null
-  tipo_plano: string | null
-  analitica: boolean
-}
-
-interface PlanoNode extends PlanoConta {
-  children: PlanoNode[]
+interface PlanoNode {
+  id: number
   nivel: number
-  rootTipo: "receita" | "despesa" | null
+  code: string
+  nome: string
+  tipo: "in" | "out" | "outro"
+  realizado: number
+  orcado: number
+  children: number[]
+  contas?: number
 }
 
-function buildTree(items: PlanoConta[]): PlanoNode[] {
-  const byId = new Map<number, PlanoNode>()
-  for (const i of items) {
-    byId.set(i.id_plano, { ...i, children: [], nivel: 1, rootTipo: null })
-  }
-  const roots: PlanoNode[] = []
-  for (const node of byId.values()) {
-    if (node.id_pai && byId.has(node.id_pai)) {
-      byId.get(node.id_pai)!.children.push(node)
-    } else {
-      roots.push(node)
-    }
-  }
-  // calcular nivel + rootTipo
-  function walk(node: PlanoNode, nivel: number, rootTipo: "receita" | "despesa" | null) {
-    node.nivel = nivel
-    if (nivel === 1) {
-      node.rootTipo =
-        node.tipo_plano === "receita" || node.tipo_plano === "despesa"
-          ? node.tipo_plano
-          : null
-    } else {
-      node.rootTipo = rootTipo
-    }
-    for (const c of node.children) walk(c, nivel + 1, node.rootTipo)
-  }
-  for (const r of roots) walk(r, 1, null)
-  // sort by codigo
-  const sortFn = (a: PlanoNode, b: PlanoNode) =>
-    (a.codigo ?? "").localeCompare(b.codigo ?? "", "pt-BR", { numeric: true })
-  function sortRecursive(nodes: PlanoNode[]) {
-    nodes.sort(sortFn)
-    for (const n of nodes) sortRecursive(n.children)
-  }
-  sortRecursive(roots)
-  return roots
+function fmtBRLk(v: number): string {
+  if (v >= 1_000_000)
+    return "R$ " + (v / 1_000_000).toFixed(2).replace(".", ",") + " mi"
+  if (v >= 1000)
+    return "R$ " + Math.round(v / 1000).toLocaleString("pt-BR") + " mil"
+  return "R$ " + v
 }
 
-function flatten(
-  roots: PlanoNode[],
-  expanded: Set<number>,
-  filtroTipo: "todos" | "receita" | "despesa",
-  busca: string
-): PlanoNode[] {
-  const out: PlanoNode[] = []
-  function visit(node: PlanoNode) {
-    if (
-      filtroTipo !== "todos" &&
-      node.rootTipo &&
-      node.rootTipo !== filtroTipo
-    )
-      return
-    if (
-      busca &&
-      !(
-        node.nome.toLowerCase().includes(busca.toLowerCase()) ||
-        (node.codigo ?? "").toLowerCase().includes(busca.toLowerCase())
-      )
-    ) {
-      // Mostra mesmo assim se algum filho bater
-      const hits = node.children.some((c) =>
-        matchesBusca(c, busca, filtroTipo)
-      )
-      if (!hits) return
-    }
-    out.push(node)
-    if (expanded.has(node.id_plano) || busca) {
-      for (const c of node.children) visit(c)
-    }
-  }
-  for (const r of roots) visit(r)
-  return out
+function fmtPct(v: number): string {
+  return v.toFixed(0) + "%"
 }
 
-function matchesBusca(
-  node: PlanoNode,
-  busca: string,
-  filtroTipo: "todos" | "receita" | "despesa"
-): boolean {
-  if (filtroTipo !== "todos" && node.rootTipo && node.rootTipo !== filtroTipo)
-    return false
-  if (
-    node.nome.toLowerCase().includes(busca.toLowerCase()) ||
-    (node.codigo ?? "").toLowerCase().includes(busca.toLowerCase())
+function PctBar({
+  real,
+  orc,
+  tipo,
+}: {
+  real: number
+  orc: number
+  tipo: "in" | "out" | "outro"
+}) {
+  const pct = orc ? (real / orc) * 100 : 0
+  const over = pct > 100
+  let color = tipo === "in" ? "var(--success)" : "var(--info)"
+  if (tipo === "out" && over) color = "var(--danger)"
+  if (tipo === "out" && pct > 85 && pct <= 100) color = "var(--warning)"
+  return (
+    <div className="pct-bar">
+      <div className="pct-bar-track">
+        <div
+          className="pct-bar-fill"
+          style={{ width: Math.min(pct, 100) + "%", background: color }}
+        />
+        {over ? (
+          <div className="pct-bar-over" style={{ left: "100%" }} />
+        ) : null}
+      </div>
+      <div
+        className="pct-bar-label mono"
+        style={{ color: over ? "var(--danger)" : "var(--ink-muted)" }}
+      >
+        {fmtPct(pct)}
+      </div>
+    </div>
   )
-    return true
-  return node.children.some((c) => matchesBusca(c, busca, filtroTipo))
 }
 
-const TIPO_OPTIONS: SegmentedOption<"todos" | "receita" | "despesa">[] = [
-  { value: "todos", label: "Tudo" },
-  { value: "receita", label: "Receitas" },
-  { value: "despesa", label: "Despesas" },
-]
+function calcLevel(code: string | null): number {
+  if (!code) return 1
+  return code.split(".").length
+}
 
 export default function PlanoContasPage() {
-  const [items, setItems] = useState<PlanoConta[]>([])
+  const [items, setItems] = useState<PlanoNode[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [expanded, setExpanded] = useState<Set<number>>(new Set())
-  const [filtroTipo, setFiltroTipo] =
-    useState<"todos" | "receita" | "despesa">("todos")
+  const [fTipo, setFTipo] = useState<"todos" | "in" | "out">("todos")
   const [busca, setBusca] = useState("")
   const [formOpen, setFormOpen] = useState(false)
   const [novaConta, setNovaConta] = useState({
@@ -178,18 +114,40 @@ export default function PlanoContasPage() {
       .order("codigo")
 
     if (error) {
-      toast.error("Erro ao carregar plano: " + error.message)
+      toast.error("Erro: " + error.message)
       setIsLoading(false)
       return
     }
-    const list = (data ?? []).map((c) => ({
-      ...c,
-      analitica: c.analitica ?? false,
-    })) as PlanoConta[]
-    setItems(list)
-    // Por padrão, expandir nivel 1
-    const tree = buildTree(list)
-    setExpanded(new Set(tree.map((r) => r.id_plano)))
+
+    const list = data ?? []
+    const childrenMap = new Map<number, number[]>()
+    for (const c of list) {
+      if (c.id_pai) {
+        const arr = childrenMap.get(c.id_pai) ?? []
+        arr.push(c.id_plano)
+        childrenMap.set(c.id_pai, arr)
+      }
+    }
+
+    const nodes: PlanoNode[] = list.map((c) => ({
+      id: c.id_plano,
+      nivel: calcLevel(c.codigo),
+      code: c.codigo ?? "",
+      nome: c.nome,
+      tipo:
+        c.tipo_plano === "receita"
+          ? "in"
+          : c.tipo_plano === "despesa"
+            ? "out"
+            : "outro",
+      realizado: 0,
+      orcado: 0,
+      children: childrenMap.get(c.id_plano) ?? [],
+      contas: undefined,
+    }))
+
+    setItems(nodes)
+    setExpanded(new Set(nodes.filter((n) => n.nivel <= 2).map((n) => n.id)))
     setIsLoading(false)
   }, [])
 
@@ -197,27 +155,40 @@ export default function PlanoContasPage() {
     load()
   }, [load])
 
-  const tree = useMemo(() => buildTree(items), [items])
-  const visible = useMemo(
-    () => flatten(tree, expanded, filtroTipo, busca),
-    [tree, expanded, filtroTipo, busca]
-  )
+  const visible = useMemo(() => {
+    const byId = new Map(items.map((n) => [n.id, n]))
+    const rootIds = items.filter((n) => n.nivel === 1).map((n) => n.id)
+    const out: PlanoNode[] = []
 
-  const totalContas = items.length
-  const receitas = items.filter((i) => i.tipo_plano === "receita").length
-  const despesas = items.filter((i) => i.tipo_plano === "despesa").length
-  const analiticas = items.filter((i) => i.analitica).length
-  const niveis = useMemo(() => {
-    let max = 1
-    function walk(nodes: PlanoNode[], n: number) {
-      for (const x of nodes) {
-        if (n > max) max = n
-        walk(x.children, n + 1)
+    function nodeMatches(n: PlanoNode): boolean {
+      if (
+        busca &&
+        !(
+          n.nome.toLowerCase().includes(busca.toLowerCase()) ||
+          n.code.includes(busca)
+        )
+      ) {
+        return n.children.some((cid) => {
+          const c = byId.get(cid)
+          return c ? nodeMatches(c) : false
+        })
+      }
+      return true
+    }
+
+    function walk(id: number) {
+      const n = byId.get(id)
+      if (!n) return
+      if (fTipo !== "todos" && n.tipo !== fTipo) return
+      if (!nodeMatches(n)) return
+      out.push(n)
+      if (expanded.has(id)) {
+        n.children.forEach(walk)
       }
     }
-    walk(tree, 1)
-    return max
-  }, [tree])
+    rootIds.forEach(walk)
+    return out
+  }, [items, expanded, fTipo, busca])
 
   const toggle = (id: number) => {
     setExpanded((prev) => {
@@ -228,12 +199,9 @@ export default function PlanoContasPage() {
     })
   }
 
-  function expandAll() {
-    setExpanded(new Set(items.map((i) => i.id_plano)))
-  }
-  function collapseAll() {
-    setExpanded(new Set())
-  }
+  const totalContas = items.length
+  const receitas = items.filter((n) => n.tipo === "in").length
+  const despesas = items.filter((n) => n.tipo === "out").length
 
   async function handleAdd() {
     if (!novaConta.nome.trim()) {
@@ -267,197 +235,255 @@ export default function PlanoContasPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <PageHeader
-        eyebrow="Financeiro · Estrutura contábil"
-        title="Plano de contas"
-        subtitle={`${totalContas} categoria${totalContas === 1 ? "" : "s"} em ${niveis} níve${niveis === 1 ? "l" : "is"} · ${analiticas} analítica${analiticas === 1 ? "" : "s"} (aceitam lançamento)`}
-        actions={
-          <Button size="sm" onClick={() => setFormOpen(true)}>
-            <Plus data-icon="inline-start" />
-            Nova categoria
-          </Button>
-        }
-      />
+    <>
+      <div className="page-head">
+        <div className="page-head-top">
+          <div className="page-head-title">
+            <div className="obra-id">Financeiro · Estrutura contábil</div>
+            <h1>Plano de contas</h1>
+            <div className="subtitle">
+              {totalContas} categorias · {receitas} receitas · {despesas}{" "}
+              despesas
+            </div>
+          </div>
+          <div className="page-head-actions">
+            <button className="btn btn-ghost" type="button" disabled>
+              <Icon name="download" />
+              Exportar DRE
+            </button>
+            <button className="btn btn-secondary" type="button" disabled>
+              <Icon name="edit" />
+              Editar estrutura
+            </button>
+            <button
+              className="btn btn-primary"
+              type="button"
+              onClick={() => setFormOpen(true)}
+            >
+              <Icon name="plus" />
+              Nova categoria
+            </button>
+          </div>
+        </div>
+      </div>
 
-      <KpiGrid cols={4}>
-        <KpiCard
-          label="Total de categorias"
-          value={totalContas}
-          sub={`${niveis} níve${niveis === 1 ? "l" : "is"} hierárquico${niveis === 1 ? "" : "s"}`}
-          icon={<TreePine />}
-        />
-        <KpiCard
-          tone="success"
-          label="Receitas"
-          value={receitas}
-          sub={`${totalContas ? Math.round((receitas * 100) / totalContas) : 0}% do plano`}
-          icon={<ArrowDown />}
-        />
-        <KpiCard
-          tone="danger"
-          label="Despesas"
-          value={despesas}
-          sub={`${totalContas ? Math.round((despesas * 100) / totalContas) : 0}% do plano`}
-          icon={<ArrowUp />}
-        />
-        <KpiCard
-          tone="info"
-          label="Analíticas"
-          value={analiticas}
-          sub="Aceitam lançamento direto"
-          icon={<FileText />}
-        />
-      </KpiGrid>
+      <div className="list-kpis">
+        <div className="list-kpi">
+          <div className="list-kpi-label">Categorias</div>
+          <div className="list-kpi-value">{totalContas}</div>
+          <div className="list-kpi-sub">
+            <Icon name="layers" />
+            Estrutura hierárquica
+          </div>
+        </div>
+        <div className="list-kpi">
+          <div className="list-kpi-label">Receitas</div>
+          <div className="list-kpi-value fin-pos">{receitas}</div>
+          <div className="list-kpi-sub">
+            <Icon name="arrowDown" />
+            Categorias de entrada
+          </div>
+        </div>
+        <div className="list-kpi">
+          <div className="list-kpi-label">Despesas</div>
+          <div className="list-kpi-value fin-neg">{despesas}</div>
+          <div className="list-kpi-sub">
+            <Icon name="arrowUp" />
+            Categorias de saída
+          </div>
+        </div>
+        <div className="list-kpi">
+          <div className="list-kpi-label">Analíticas</div>
+          <div className="list-kpi-value">
+            {items.filter((n) => n.children.length === 0).length}
+          </div>
+          <div className="list-kpi-sub">
+            <Icon name="check" />
+            Aceitam lançamento
+          </div>
+        </div>
+      </div>
 
-      <div className="overflow-hidden rounded-md border border-border bg-card">
-        <div className="flex flex-col gap-3 border-b border-border p-4 lg:flex-row lg:items-center lg:justify-between">
-          <div className="relative max-w-md flex-1">
-            <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              type="search"
+      <div className="card" style={{ marginTop: 18 }}>
+        <div className="card-head list-toolbar">
+          <div className="list-search">
+            <Icon name="search" />
+            <input
+              type="text"
               placeholder="Buscar categoria ou código…"
               value={busca}
               onChange={(e) => setBusca(e.target.value)}
-              className="h-9 pl-9"
             />
           </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <SegmentedControl
-              value={filtroTipo}
-              onValueChange={setFiltroTipo}
-              options={TIPO_OPTIONS}
-              ariaLabel="Tipo"
-            />
-            <Button variant="ghost" size="sm" onClick={expandAll}>
-              <Layers data-icon="inline-start" />
+          <div className="list-filters">
+            <div className="seg">
+              {(
+                [
+                  { id: "todos", label: "Tudo" },
+                  { id: "in", label: "Receitas" },
+                  { id: "out", label: "Despesas" },
+                ] as const
+              ).map((t) => (
+                <button
+                  key={t.id}
+                  type="button"
+                  className={"seg-btn" + (fTipo === t.id ? " active" : "")}
+                  onClick={() => setFTipo(t.id)}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm"
+              onClick={() => setExpanded(new Set(items.map((n) => n.id)))}
+            >
               Expandir tudo
-            </Button>
-            <Button variant="ghost" size="sm" onClick={collapseAll}>
+            </button>
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm"
+              onClick={() => setExpanded(new Set())}
+            >
               Recolher tudo
-            </Button>
+            </button>
           </div>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="min-w-full">
-            <thead>
-              <tr className="border-b border-border bg-muted/60 text-[11px] uppercase tracking-wider text-muted-foreground">
-                <th className="px-5 py-2.5 text-left font-semibold">
-                  Código · Categoria
-                </th>
-                <th className="px-5 py-2.5 text-left font-semibold">Tipo</th>
-                <th className="px-5 py-2.5 text-left font-semibold">Modo</th>
-                <th className="w-12 px-2 py-2.5"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {isLoading ? (
-                <tr>
-                  <td
-                    colSpan={4}
-                    className="px-5 py-12 text-center text-sm text-muted-foreground"
-                  >
-                    Carregando plano…
-                  </td>
-                </tr>
-              ) : visible.length === 0 ? (
-                <tr>
-                  <td
-                    colSpan={4}
-                    className="px-5 py-16 text-center text-sm text-muted-foreground"
-                  >
-                    {items.length === 0
-                      ? "Plano de contas vazio. Comece criando uma categoria raiz."
-                      : "Nenhuma categoria encontrada com esses filtros."}
-                  </td>
-                </tr>
-              ) : (
-                visible.map((n) => {
-                  const hasChildren = n.children.length > 0
-                  const isExpanded = expanded.has(n.id_plano)
-                  return (
-                    <tr
-                      key={n.id_plano}
-                      className={cn(
-                        "border-b border-border transition-colors last:border-b-0 hover:bg-muted/30",
-                        n.nivel === 1 && "bg-muted/30 font-medium"
-                      )}
+        <div className="list-table list-table-plano">
+          <div className="list-thead">
+            <div>Código · Categoria</div>
+            <div>Lançamentos</div>
+            <div className="num">Realizado</div>
+            <div className="num">Orçado</div>
+            <div>Utilização</div>
+            <div></div>
+          </div>
+          {isLoading ? (
+            <div
+              style={{
+                padding: "60px 24px",
+                textAlign: "center",
+                color: "var(--ink-muted)",
+                fontSize: 13.5,
+              }}
+            >
+              Carregando…
+            </div>
+          ) : visible.length === 0 ? (
+            <div
+              style={{
+                padding: "60px 24px",
+                textAlign: "center",
+                color: "var(--ink-muted)",
+                fontSize: 13.5,
+              }}
+            >
+              Plano vazio. Crie a primeira categoria.
+            </div>
+          ) : (
+            visible.map((n) => {
+              const hasChildren = n.children.length > 0
+              const isExpanded = expanded.has(n.id)
+              return (
+                <div
+                  className={
+                    "list-row2 plano-row plano-lvl-" +
+                    n.nivel +
+                    (n.nivel === 1
+                      ? n.tipo === "in"
+                        ? " plano-root-in"
+                        : " plano-root-out"
+                      : "")
+                  }
+                  key={n.id}
+                >
+                  <div className="plano-name-cell">
+                    <div
+                      style={{
+                        paddingLeft: (n.nivel - 1) * 24,
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 8,
+                      }}
                     >
-                      <td className="px-5 py-3">
-                        <div
-                          className="flex items-center gap-2"
-                          style={{ paddingLeft: `${(n.nivel - 1) * 24}px` }}
+                      {hasChildren ? (
+                        <button
+                          type="button"
+                          className="tree-toggle"
+                          onClick={() => toggle(n.id)}
+                          aria-label={isExpanded ? "Recolher" : "Expandir"}
                         >
-                          {hasChildren ? (
-                            <button
-                              onClick={() => toggle(n.id_plano)}
-                              className="-ml-1 flex size-5 items-center justify-center rounded text-muted-foreground hover:bg-muted hover:text-foreground"
-                              aria-label={isExpanded ? "Recolher" : "Expandir"}
-                            >
-                              {isExpanded ? (
-                                <ChevronDown className="size-3.5" />
-                              ) : (
-                                <ChevronRight className="size-3.5" />
-                              )}
-                            </button>
-                          ) : (
-                            <span className="inline-block w-5" />
-                          )}
-                          <span className="mono w-16 shrink-0 text-[12px] font-medium text-muted-foreground tabular-nums">
-                            {n.codigo ?? "—"}
-                          </span>
-                          <span
-                            className={cn(
-                              "text-[13.5px]",
-                              n.nivel === 1
-                                ? "font-semibold text-foreground"
-                                : "font-normal text-foreground"
-                            )}
-                          >
-                            {n.nome}
-                          </span>
-                        </div>
-                      </td>
-                      <td className="px-5 py-3">
-                        {n.tipo_plano === "receita" ? (
-                          <CategoryChip tone="success">
-                            <ArrowDown className="size-3" />
-                            Receita
-                          </CategoryChip>
-                        ) : n.tipo_plano === "despesa" ? (
-                          <CategoryChip tone="danger">
-                            <ArrowUp className="size-3" />
-                            Despesa
-                          </CategoryChip>
-                        ) : (
-                          <span className="text-[12.5px] text-muted-foreground">
-                            —
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-5 py-3">
-                        {n.analitica ? (
-                          <CategoryChip tone="info">Analítica</CategoryChip>
-                        ) : (
-                          <CategoryChip tone="neutral">Sintética</CategoryChip>
-                        )}
-                      </td>
-                      <td className="px-2 py-3 text-right">
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          aria-label="Mais ações"
+                          <Icon
+                            name={isExpanded ? "chevronDown" : "chevronRight"}
+                          />
+                        </button>
+                      ) : (
+                        <span
+                          style={{ width: 20, display: "inline-block" }}
+                        />
+                      )}
+                      <span className="mono plano-code">{n.code}</span>
+                      <span className={"plano-nome lvl-" + n.nivel}>
+                        {n.nome}
+                      </span>
+                      {n.nivel === 1 ? (
+                        <span
+                          className={
+                            "badge dot " +
+                            (n.tipo === "in"
+                              ? "badge-success"
+                              : "badge-danger")
+                          }
+                          style={{ marginLeft: 8 }}
                         >
-                          <MoreHorizontal />
-                        </Button>
-                      </td>
-                    </tr>
-                  )
-                })
-              )}
-            </tbody>
-          </table>
+                          {n.tipo === "in" ? "Receita" : "Despesa"}
+                        </span>
+                      ) : null}
+                    </div>
+                  </div>
+                  <div>
+                    {n.contas != null ? (
+                      <span className="mono sub">{n.contas} lançamentos</span>
+                    ) : (
+                      <span className="sub">— consolidado —</span>
+                    )}
+                  </div>
+                  <div className="list-cell-num">
+                    <div
+                      className={
+                        "val mono " +
+                        (n.tipo === "in" ? "fin-pos" : "fin-neg")
+                      }
+                      style={{ fontSize: n.nivel === 1 ? 14 : 13 }}
+                    >
+                      {fmtBRLk(n.realizado)}
+                    </div>
+                  </div>
+                  <div className="list-cell-num">
+                    <div
+                      className="mono"
+                      style={{
+                        fontSize: 13,
+                        color: "var(--ink-muted)",
+                      }}
+                    >
+                      {fmtBRLk(n.orcado)}
+                    </div>
+                  </div>
+                  <div>
+                    <PctBar real={n.realizado} orc={n.orcado} tipo={n.tipo} />
+                  </div>
+                  <div className="list-cell-actions">
+                    <button type="button" className="icon-btn">
+                      <Icon name="more" />
+                    </button>
+                  </div>
+                </div>
+              )
+            })
+          )}
         </div>
       </div>
 
@@ -501,17 +527,12 @@ export default function PlanoContasPage() {
                   <SelectValue placeholder="Raiz (nenhuma)" />
                 </SelectTrigger>
                 <SelectContent>
-                  {items
-                    .filter((c) => !c.analitica)
-                    .map((c) => (
-                      <SelectItem
-                        key={c.id_plano}
-                        value={c.id_plano.toString()}
-                      >
-                        {c.codigo ? `${c.codigo} · ` : ""}
-                        {c.nome}
-                      </SelectItem>
-                    ))}
+                  {items.map((c) => (
+                    <SelectItem key={c.id} value={c.id.toString()}>
+                      {c.code ? `${c.code} · ` : ""}
+                      {c.nome}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -559,6 +580,6 @@ export default function PlanoContasPage() {
           </div>
         </DialogContent>
       </Dialog>
-    </div>
+    </>
   )
 }

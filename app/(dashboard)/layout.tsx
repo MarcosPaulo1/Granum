@@ -3,10 +3,9 @@
 import { useRouter } from "next/navigation"
 import { useUser } from "@/lib/hooks/use-user"
 import { createClient } from "@/lib/supabase/client"
-import { Sidebar } from "@/components/layout/sidebar"
-import { Header } from "@/components/layout/header"
+import { Sidebar, Header } from "@/components/granum/chrome"
 import { ROLES } from "@/lib/constants"
-import { Loader2 } from "lucide-react"
+import { Icon } from "@/components/granum/icon"
 
 export default function DashboardLayout({
   children,
@@ -25,8 +24,19 @@ export default function DashboardLayout({
 
   if (isLoading) {
     return (
-      <div className="flex h-screen items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+      <div
+        style={{
+          display: "flex",
+          height: "100vh",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        <Icon
+          name="refresh"
+          className="animate-spin"
+          style={{ width: 28, height: 28, color: "var(--primary)" }}
+        />
       </div>
     )
   }
@@ -40,27 +50,11 @@ export default function DashboardLayout({
   const roleName = role ? ROLES[role] : "Sem perfil"
 
   return (
-    <div className="flex h-screen overflow-hidden">
-      <div className="hidden lg:block">
-        <Sidebar
-          role={role}
-          userName={userName}
-          roleName={roleName}
-          onSignOut={handleSignOut}
-        />
-      </div>
-
-      <div className="flex flex-1 flex-col overflow-hidden">
-        <Header
-          role={role}
-          userName={userName}
-          roleName={roleName}
-          onSignOut={handleSignOut}
-        />
-
-        <main className="flex-1 overflow-y-auto bg-gray-50 p-4 lg:p-6">
-          {children}
-        </main>
+    <div className="app">
+      <Sidebar role={role} userName={userName} roleName={roleName} />
+      <div className="main">
+        <Header onSignOut={handleSignOut} />
+        <div className="content">{children}</div>
       </div>
     </div>
   )

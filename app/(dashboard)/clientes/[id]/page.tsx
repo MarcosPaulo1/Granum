@@ -1,59 +1,134 @@
 "use client"
 
+// Port literal de granum-design/cliente-perfil-app.jsx + ClientePerfil.html
+
 import Link from "next/link"
 import { useEffect, useState } from "react"
-import { useParams, useRouter } from "next/navigation"
-import {
-  ArrowLeft,
-  Building,
-  CheckCircle2,
-  Mail,
-  MapPin,
-  Pencil,
-  Phone,
-} from "lucide-react"
+import { useParams } from "next/navigation"
 
 import { ClienteForm } from "@/components/forms/cliente-form"
-import { Avatar } from "@/components/shared/avatar"
-import { CategoryChip } from "@/components/shared/category-chip"
-import { KpiCard, KpiGrid } from "@/components/shared/kpi-card"
-import { PageHeader } from "@/components/shared/page-header"
-import { ProgressBar } from "@/components/shared/progress-bar"
-import { StatusBadge } from "@/components/shared/status-badge"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
+import { Icon } from "@/components/granum/icon"
 import { OBRA_STATUS } from "@/lib/constants"
 import { createClient } from "@/lib/supabase/client"
-import { cn } from "@/lib/utils"
 import { formatCPFCNPJ, formatDate, formatPhone } from "@/lib/utils/format"
 import type { Database } from "@/lib/supabase/types"
 
 type Cliente = Database["public"]["Tables"]["cliente"]["Row"]
 
-interface ObraResumida {
+interface ObraResumo {
   id_obra: number
+  id: string
   nome: string
   status: string
-  percentual_finalizada: number
-  data_inicio_prevista: string | null
+  progresso: number
+  inicio: string
+  fim: string
+  responsavel: string
+  tarefas: number
+  equipe: number
+  valor: number
+  realizado: number
 }
 
-const ACTIVE_STATUSES = new Set(["em_andamento", "planejamento"])
+const STATUS_META: Record<
+  string,
+  { label: string; bg: string; fg: string; dot: string }
+> = {
+  em_andamento: {
+    label: "Em andamento",
+    bg: "var(--info-soft)",
+    fg: "var(--info-ink)",
+    dot: "var(--info)",
+  },
+  planejamento: {
+    label: "Planejamento",
+    bg: "var(--surface-muted)",
+    fg: "var(--ink-muted)",
+    dot: "var(--planned)",
+  },
+  pausada: {
+    label: "Pausada",
+    bg: "var(--warning-soft)",
+    fg: "var(--warning-ink)",
+    dot: "var(--warning)",
+  },
+  concluida: {
+    label: "Concluída",
+    bg: "var(--success-soft)",
+    fg: "var(--success-ink)",
+    dot: "var(--success)",
+  },
+  cancelada: {
+    label: "Cancelada",
+    bg: "var(--danger-soft)",
+    fg: "var(--danger-ink)",
+    dot: "var(--danger)",
+  },
+}
 
 function detectTipo(cpfCnpj: string | null): "PF" | "PJ" {
   if (!cpfCnpj) return "PF"
   return cpfCnpj.replace(/\D/g, "").length >= 14 ? "PJ" : "PF"
 }
 
-function clienteCode(id: number) {
-  return `CLI-${String(id).padStart(4, "0")}`
+function getInitials(nome: string): string {
+  const parts = nome.trim().split(/\s+/).filter(Boolean)
+  if (parts.length === 0) return "?"
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase()
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
+}
+
+function fmtBRL(v: number): string {
+  if (!v) return "R$ 0"
+  if (v >= 1_000_000)
+    return "R$ " + (v / 1_000_000).toFixed(2).replace(".", ",") + " mi"
+  if (v >= 1000) return "R$ " + Math.round(v / 1000) + " mil"
+  return "R$ " + v
+}
+
+function fmtBRLfull(v: number): string {
+  return (
+    "R$ " +
+    v.toLocaleString("pt-BR", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })
+  )
+}
+
+function ObraStatusBadge({ s }: { s: string }) {
+  const m = STATUS_META[s] ?? STATUS_META.planejamento
+  return (
+    <span
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 6,
+        padding: "2px 8px",
+        borderRadius: 999,
+        background: m.bg,
+        color: m.fg,
+        fontSize: 11,
+        fontWeight: 500,
+      }}
+    >
+      <span
+        style={{
+          width: 6,
+          height: 6,
+          borderRadius: "50%",
+          background: m.dot,
+        }}
+      />
+      {m.label}
+    </span>
+  )
 }
 
 export default function ClientePerfilPage() {
   const params = useParams()
-  const router = useRouter()
   const [cliente, setCliente] = useState<Cliente | null>(null)
-  const [obras, setObras] = useState<ObraResumida[]>([])
+  const [obras, setObras] = useState<ObraResumo[]>([])
   const [formOpen, setFormOpen] = useState(false)
 
   async function load() {
@@ -65,14 +140,50 @@ export default function ClientePerfilPage() {
       .eq("id_cliente", id)
       .single()
     setCliente(c)
+
     const { data: o } = await supabase
       .from("obra")
       .select(
-        "id_obra, nome, status, percentual_finalizada, data_inicio_prevista"
+        "id_obra, nome, status, percentual_finalizada, data_inicio_prevista, data_fim_prevista, id_responsavel"
       )
       .eq("id_cliente", id)
       .order("created_at", { ascending: false })
-    setObras((o as ObraResumida[]) ?? [])
+
+    const respIds = Array.from(
+      new Set(
+        (o ?? []).filter((x) => x.id_responsavel).map((x) => x.id_responsavel!)
+      )
+    )
+    const { data: resps } = respIds.length
+      ? await supabase
+          .from("responsavel")
+          .select("id_responsavel, nome")
+          .in("id_responsavel", respIds)
+      : { data: [] as { id_responsavel: number; nome: string }[] }
+    const respMap = new Map(
+      (resps ?? []).map((r) => [r.id_responsavel, r.nome as string])
+    )
+
+    setObras(
+      (o ?? []).map((x) => ({
+        id_obra: x.id_obra,
+        id: `OBR-${String(x.id_obra).padStart(4, "0")}`,
+        nome: x.nome,
+        status: x.status ?? "planejamento",
+        progresso: Math.round(x.percentual_finalizada ?? 0),
+        inicio: x.data_inicio_prevista
+          ? formatDate(x.data_inicio_prevista)
+          : "—",
+        fim: x.data_fim_prevista ? formatDate(x.data_fim_prevista) : "—",
+        responsavel: x.id_responsavel
+          ? respMap.get(x.id_responsavel) ?? "—"
+          : "—",
+        tarefas: 0,
+        equipe: 0,
+        valor: 0,
+        realizado: 0,
+      }))
+    )
   }
 
   useEffect(() => {
@@ -82,222 +193,236 @@ export default function ClientePerfilPage() {
 
   if (!cliente) {
     return (
-      <div className="flex h-64 items-center justify-center text-sm text-muted-foreground">
+      <div
+        style={{
+          padding: "60px 24px",
+          textAlign: "center",
+          color: "var(--ink-muted)",
+        }}
+      >
         Carregando cliente…
       </div>
     )
   }
 
   const tipo = detectTipo(cliente.cpf_cnpj)
-  const obrasAtivas = obras.filter((o) => ACTIVE_STATUSES.has(o.status)).length
+  const obrasAtivas = obras.filter(
+    (o) => o.status === "em_andamento" || o.status === "planejamento"
+  ).length
   const obrasConcluidas = obras.filter((o) => o.status === "concluida").length
-  const progressoMedio =
-    obras.length === 0
-      ? 0
-      : Math.round(
-          obras.reduce((a, o) => a + (o.percentual_finalizada ?? 0), 0) /
-            obras.length
-        )
+  const totalContratado = obras.reduce((a, o) => a + o.valor, 0)
+  const totalFaturado = obras.reduce((a, o) => a + o.realizado, 0)
+  const code = `CLI-${String(cliente.id_cliente).padStart(4, "0")}`
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-2 text-[12.5px] text-muted-foreground">
-        <Link
-          href="/clientes"
-          className="inline-flex items-center gap-1 hover:text-foreground"
+    <>
+      <div className="profile-head">
+        <div
+          className={"profile-avatar " + (tipo === "PJ" ? "tone-pj" : "")}
         >
-          <ArrowLeft className="size-3.5" />
-          Clientes
-        </Link>
-        <span>·</span>
-        <span className="mono tabular-nums">{clienteCode(cliente.id_cliente)}</span>
+          {getInitials(cliente.nome)}
+        </div>
+        <div className="profile-head-info">
+          <div className="obra-id">
+            {code} · {tipo === "PJ" ? "Pessoa Jurídica" : "Pessoa Física"}
+          </div>
+          <h1>{cliente.nome}</h1>
+          <div className="badges">
+            <span className="badge dot badge-success">Ativo</span>
+            <span style={{ fontSize: 12.5, color: "var(--ink-muted)" }}>
+              {obras.length} obras · {obrasAtivas} ativa
+              {obrasAtivas !== 1 ? "s" : ""}
+            </span>
+          </div>
+        </div>
+        <div className="profile-head-actions">
+          <button
+            className="btn btn-ghost"
+            type="button"
+            onClick={() => setFormOpen(true)}
+          >
+            <Icon name="edit" />
+            Editar dados
+          </button>
+          <Link href="/clientes" className="btn btn-secondary">
+            <Icon name="external" />
+            Voltar
+          </Link>
+        </div>
       </div>
 
-      <Card>
-        <CardContent className="py-6">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-center gap-4">
-              <Avatar
-                variant={tipo === "PJ" ? "pj" : "pf"}
-                name={cliente.nome}
-                size="xl"
-              />
-              <div className="min-w-0">
-                <div className="flex items-center gap-2">
-                  <CategoryChip tone="neutral">{tipo}</CategoryChip>
-                  {cliente.portal_ativo ? (
-                    <CategoryChip tone="success">
-                      <CheckCircle2 className="size-3" />
-                      Portal ativo
-                    </CategoryChip>
-                  ) : null}
-                </div>
-                <h2 className="mt-1 text-[20px] font-semibold tracking-tight text-foreground">
-                  {cliente.nome}
-                </h2>
-                <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12.5px] text-muted-foreground">
-                  {cliente.cpf_cnpj ? (
-                    <span className="mono tabular-nums">
-                      {formatCPFCNPJ(cliente.cpf_cnpj)}
-                    </span>
-                  ) : null}
-                  {cliente.email ? (
-                    <span className="inline-flex items-center gap-1">
-                      <Mail className="size-3.5" />
-                      {cliente.email}
-                    </span>
-                  ) : null}
-                  {cliente.telefone ? (
-                    <span className="mono inline-flex items-center gap-1 tabular-nums">
-                      <Phone className="size-3.5" />
-                      {formatPhone(cliente.telefone)}
-                    </span>
-                  ) : null}
+      <div className="profile-grid">
+        <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+          <div className="detail-card">
+            <div className="detail-card-head">
+              <div>
+                <h3>Resumo</h3>
+                <div className="sub">
+                  Visão geral das obras associadas ao cliente
                 </div>
               </div>
             </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setFormOpen(true)}
-            >
-              <Pencil data-icon="inline-start" />
-              Editar
-            </Button>
+            <div className="detail-stats">
+              <div className="detail-stat">
+                <div className="lbl">Total de obras</div>
+                <div className="val">{obras.length}</div>
+                <div className="sub">No histórico</div>
+              </div>
+              <div className="detail-stat">
+                <div className="lbl">Ativas</div>
+                <div className="val fin-pos">{obrasAtivas}</div>
+                <div className="sub">Em execução ou planejamento</div>
+              </div>
+              <div className="detail-stat">
+                <div className="lbl">Concluídas</div>
+                <div className="val">{obrasConcluidas}</div>
+                <div className="sub">Já entregues</div>
+              </div>
+              <div className="detail-stat">
+                <div className="lbl">Faturado</div>
+                <div className="val fin-pos">{fmtBRL(totalFaturado)}</div>
+                <div className="sub">Soma de lançamentos</div>
+              </div>
+            </div>
           </div>
-        </CardContent>
-      </Card>
 
-      <KpiGrid cols={4}>
-        <KpiCard
-          label="Total de obras"
-          value={obras.length}
-          sub={`${obrasConcluidas} concluída${obrasConcluidas === 1 ? "" : "s"}`}
-          icon={<Building />}
-        />
-        <KpiCard
-          tone="info"
-          label="Obras ativas"
-          value={obrasAtivas}
-          sub={obrasAtivas > 0 ? "Em execução" : "Sem obra ativa"}
-        />
-        <KpiCard
-          tone={progressoMedio >= 80 ? "success" : "neutral"}
-          label="Progresso médio"
-          value={`${progressoMedio}%`}
-          sub="Sob obras vinculadas"
-        />
-        <KpiCard
-          label="Tipo"
-          value={tipo === "PJ" ? "Pessoa jurídica" : "Pessoa física"}
-          sub={cliente.cpf_cnpj ? formatCPFCNPJ(cliente.cpf_cnpj) : "Sem documento"}
-        />
-      </KpiGrid>
-
-      <div className="grid gap-4 lg:grid-cols-3">
-        <Card className="lg:col-span-2">
-          <CardContent className="space-y-3 py-5">
-            <div className="flex items-center justify-between">
-              <h3 className="text-[15px] font-semibold text-foreground">
-                Obras deste cliente
-              </h3>
-              <span className="text-[12px] text-muted-foreground">
-                {obras.length} no histórico
-              </span>
-            </div>
-            {obras.length === 0 ? (
-              <p className="py-6 text-center text-[13px] text-muted-foreground">
-                Nenhuma obra vinculada ainda.
-              </p>
-            ) : (
-              <div className="space-y-1.5">
-                {obras.map((o) => (
-                  <button
-                    key={o.id_obra}
-                    onClick={() => router.push(`/obras/${o.id_obra}`)}
-                    className="flex w-full items-center justify-between gap-4 rounded-md border border-border px-3 py-2.5 text-left transition-colors hover:bg-muted/30"
-                  >
-                    <div className="min-w-0 flex-1">
-                      <div className="truncate text-[13.5px] font-medium text-foreground">
-                        {o.nome}
-                      </div>
-                      {o.data_inicio_prevista ? (
-                        <div className="text-[11.5px] text-muted-foreground">
-                          Início: {formatDate(o.data_inicio_prevista)}
-                        </div>
-                      ) : null}
-                    </div>
-                    <div className="flex shrink-0 items-center gap-3">
-                      <ProgressBar
-                        value={o.percentual_finalizada ?? 0}
-                        className="w-24"
-                      />
-                      <span
-                        className={cn(
-                          "mono w-10 text-right text-[12px] tabular-nums",
-                          (o.percentual_finalizada ?? 0) >= 80
-                            ? "text-[var(--success-ink)] font-medium"
-                            : "text-muted-foreground"
-                        )}
-                      >
-                        {Math.round(o.percentual_finalizada ?? 0)}%
-                      </span>
-                      <StatusBadge status={o.status} statusMap={OBRA_STATUS} />
-                    </div>
-                  </button>
-                ))}
+          <div className="detail-card">
+            <div className="detail-card-head">
+              <div>
+                <h3>Obras do cliente</h3>
+                <div className="sub">
+                  {obrasAtivas} ativas · {obrasConcluidas} concluídas
+                </div>
               </div>
-            )}
-          </CardContent>
-        </Card>
+            </div>
+            <div className="detail-card-body flush">
+              {obras.length === 0 ? (
+                <div
+                  style={{
+                    padding: "32px 20px",
+                    textAlign: "center",
+                    color: "var(--ink-muted)",
+                    fontSize: 13.5,
+                  }}
+                >
+                  Nenhuma obra vinculada.
+                </div>
+              ) : (
+                <div className="detail-list">
+                  {obras.map((o) => (
+                    <Link
+                      href={`/obras/${o.id_obra}`}
+                      className="detail-list-item"
+                      key={o.id}
+                    >
+                      <div className="li-main">
+                        <div className="li-title">
+                          <a>{o.nome}</a>
+                        </div>
+                        <div className="li-sub">
+                          <span>{o.id}</span>
+                          <span>·</span>
+                          <ObraStatusBadge s={o.status} />
+                          <span>·</span>
+                          <Icon name="calendar" />
+                          {o.inicio} → {o.fim}
+                          {o.responsavel !== "—" ? (
+                            <>
+                              <span>·</span>
+                              <Icon name="users" />
+                              {o.responsavel}
+                            </>
+                          ) : null}
+                        </div>
+                        <div className="detail-progress">
+                          <div className="detail-progress-bar">
+                            <span style={{ width: o.progresso + "%" }} />
+                          </div>
+                          <span className="detail-progress-pct">
+                            {o.progresso}%
+                          </span>
+                        </div>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
 
-        <Card>
-          <CardContent className="space-y-4 py-5">
-            <h3 className="text-[15px] font-semibold text-foreground">
-              Detalhes
-            </h3>
-            <dl className="space-y-2.5 text-[13px]">
-              {cliente.cpf_cnpj ? (
-                <Detail
-                  label={tipo === "PJ" ? "CNPJ" : "CPF"}
-                  value={formatCPFCNPJ(cliente.cpf_cnpj)}
-                  mono
-                />
-              ) : null}
-              {cliente.email ? (
-                <Detail label="E-mail" value={cliente.email} />
-              ) : null}
-              {cliente.telefone ? (
-                <Detail
-                  label="Telefone"
-                  value={formatPhone(cliente.telefone)}
-                  mono
-                />
-              ) : null}
-              {cliente.endereco ? (
-                <div>
-                  <dt className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                    Endereço
-                  </dt>
-                  <dd className="mt-1 inline-flex items-start gap-1 text-foreground">
-                    <MapPin className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" />
-                    {cliente.endereco}
-                  </dd>
-                </div>
-              ) : null}
-              {cliente.observacoes ? (
-                <div>
-                  <dt className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                    Observações
-                  </dt>
-                  <dd className="mt-1 text-foreground">
-                    {cliente.observacoes}
-                  </dd>
-                </div>
-              ) : null}
-            </dl>
-          </CardContent>
-        </Card>
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: 18,
+          }}
+        >
+          <div className="detail-card">
+            <div className="detail-card-head">
+              <h3>Dados cadastrais</h3>
+              <button
+                type="button"
+                className="icon-btn"
+                title="Editar"
+                onClick={() => setFormOpen(true)}
+              >
+                <Icon name="edit" />
+              </button>
+            </div>
+            <div className="detail-card-body flush">
+              <div className="quick-info">
+                {cliente.cpf_cnpj ? (
+                  <div className="quick-info-row">
+                    <div className="lbl">{tipo === "PJ" ? "CNPJ" : "CPF"}</div>
+                    <div className="val mono">
+                      {formatCPFCNPJ(cliente.cpf_cnpj)}
+                    </div>
+                  </div>
+                ) : null}
+                {cliente.email ? (
+                  <div className="quick-info-row">
+                    <div className="lbl">E-mail</div>
+                    <div className="val">{cliente.email}</div>
+                  </div>
+                ) : null}
+                {cliente.telefone ? (
+                  <div className="quick-info-row">
+                    <div className="lbl">Telefone</div>
+                    <div className="val mono">
+                      {formatPhone(cliente.telefone)}
+                    </div>
+                  </div>
+                ) : null}
+                {cliente.endereco ? (
+                  <div className="quick-info-row">
+                    <div className="lbl">Endereço</div>
+                    <div className="val">{cliente.endereco}</div>
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          </div>
+
+          {cliente.observacoes ? (
+            <div className="detail-card">
+              <div className="detail-card-head">
+                <h3>Observações</h3>
+              </div>
+              <div className="detail-card-body">
+                <p
+                  style={{
+                    fontSize: 12.5,
+                    color: "var(--ink-muted)",
+                    lineHeight: 1.6,
+                  }}
+                >
+                  {cliente.observacoes}
+                </p>
+              </div>
+            </div>
+          ) : null}
+        </div>
       </div>
 
       <ClienteForm
@@ -306,32 +431,9 @@ export default function ClientePerfilPage() {
         cliente={cliente}
         onSuccess={load}
       />
-    </div>
+    </>
   )
 }
 
-function Detail({
-  label,
-  value,
-  mono,
-}: {
-  label: string
-  value: string
-  mono?: boolean
-}) {
-  return (
-    <div className="flex items-baseline justify-between gap-3">
-      <dt className="shrink-0 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-        {label}
-      </dt>
-      <dd
-        className={cn(
-          "min-w-0 truncate text-right text-foreground",
-          mono && "mono tabular-nums"
-        )}
-      >
-        {value}
-      </dd>
-    </div>
-  )
-}
+void OBRA_STATUS
+void fmtBRLfull

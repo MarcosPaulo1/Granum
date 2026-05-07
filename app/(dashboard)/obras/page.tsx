@@ -1,60 +1,156 @@
 "use client"
 
+// Port literal de granum-design/obras-app.jsx + Obras.html
+
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
-import {
-  Activity,
-  Building,
-  Calendar,
-  CheckCircle2,
-  ClipboardList,
-  Download,
-  MoreHorizontal,
-  Plus,
-  Search,
-  Upload,
-} from "lucide-react"
+import { differenceInCalendarDays, parseISO } from "date-fns"
 import { toast } from "sonner"
 
 import { ObraForm } from "@/components/forms/obra-form"
-import { CategoryChip } from "@/components/shared/category-chip"
-import { KpiCard, KpiGrid } from "@/components/shared/kpi-card"
-import { PageHeader } from "@/components/shared/page-header"
-import { ProgressBar } from "@/components/shared/progress-bar"
-import { StatusBadge } from "@/components/shared/status-badge"
-import {
-  SegmentedControl,
-  type SegmentedOption,
-} from "@/components/shared/segmented-control"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { OBRA_STATUS } from "@/lib/constants"
+import { Icon } from "@/components/granum/icon"
 import { useUser } from "@/lib/hooks/use-user"
 import { createClient } from "@/lib/supabase/client"
-import { cn } from "@/lib/utils"
 import { formatDate } from "@/lib/utils/format"
 
 interface ObraRow {
-  id_obra: number
+  id: string
+  rawId: number
   nome: string
+  cliente: string
+  clienteInit: string
+  responsavel: { nome: string; init: string }
+  endereco: string
   status: string
-  percentual_finalizada: number
-  data_inicio_prevista: string | null
-  data_fim_prevista: string | null
-  cliente_nome: string
-  responsavel_nome: string
+  progresso: number
+  inicio: string
+  fim: string
+  diasAteFim: number
+  atrasado: boolean
+  orcamento: number
+  realizado: number
+  tarefasTotal: number
+  tarefasConcluidas: number
+  tarefasAtrasadas: number
+  equipe: number
+  entregue?: string
 }
 
-const STATUS_OPTIONS: SegmentedOption<"todos" | string>[] = [
-  { value: "todos", label: "Todos" },
-  { value: "em_andamento", label: "Em andamento" },
-  { value: "planejamento", label: "Planejamento" },
-  { value: "pausada", label: "Pausadas" },
-  { value: "concluida", label: "Concluídas" },
-]
+const STATUS_META: Record<
+  string,
+  { label: string; tone: string; dot: string; fg: string; bg: string }
+> = {
+  planejamento: {
+    label: "Planejamento",
+    tone: "neutral",
+    dot: "var(--planned)",
+    fg: "var(--ink-muted)",
+    bg: "var(--surface-muted)",
+  },
+  em_andamento: {
+    label: "Em andamento",
+    tone: "info",
+    dot: "var(--info)",
+    fg: "var(--info-ink)",
+    bg: "var(--info-soft)",
+  },
+  pausada: {
+    label: "Pausada",
+    tone: "warning",
+    dot: "var(--warning)",
+    fg: "var(--warning-ink)",
+    bg: "var(--warning-soft)",
+  },
+  concluida: {
+    label: "Concluída",
+    tone: "success",
+    dot: "var(--success)",
+    fg: "var(--success-ink)",
+    bg: "var(--success-soft)",
+  },
+  cancelada: {
+    label: "Cancelada",
+    tone: "danger",
+    dot: "var(--danger)",
+    fg: "var(--danger-ink)",
+    bg: "var(--danger-soft)",
+  },
+}
 
-function obraCode(id: number) {
-  return `OBR-${String(id).padStart(4, "0")}`
+function getInitials(nome: string): string {
+  const parts = nome.trim().split(/\s+/).filter(Boolean)
+  if (parts.length === 0) return "?"
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase()
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
+}
+
+function fmtBRL(v: number): string {
+  if (!v) return "R$ 0"
+  if (v >= 1_000_000)
+    return "R$ " + (v / 1_000_000).toFixed(2).replace(".", ",") + " mi"
+  if (v >= 1000) return "R$ " + Math.round(v / 1000).toLocaleString("pt-BR") + " mil"
+  return "R$ " + v.toLocaleString("pt-BR")
+}
+
+function StatusBadge({ s }: { s: string }) {
+  const m = STATUS_META[s] ?? STATUS_META.planejamento
+  return (
+    <span
+      className="badge"
+      style={{
+        background: m.bg,
+        color: m.fg,
+        fontSize: 11,
+        fontWeight: 500,
+      }}
+    >
+      <span
+        style={{
+          display: "inline-block",
+          width: 6,
+          height: 6,
+          borderRadius: "50%",
+          background: m.dot,
+          marginRight: 6,
+        }}
+      ></span>
+      {m.label}
+    </span>
+  )
+}
+
+function ObraProgress({
+  pct,
+  status,
+  atrasado,
+}: {
+  pct: number
+  status: string
+  atrasado: boolean
+}) {
+  let color = "var(--info)"
+  if (status === "concluida") color = "var(--success)"
+  else if (status === "pausada") color = "var(--warning)"
+  else if (status === "planejamento") color = "var(--planned)"
+  else if (atrasado) color = "var(--danger)"
+  return (
+    <div className="obra-progress">
+      <div className="obra-progress-track">
+        <div
+          className="obra-progress-fill"
+          style={{ width: pct + "%", background: color }}
+        ></div>
+      </div>
+      <div
+        className="obra-progress-pct mono"
+        style={{
+          color: atrasado ? "var(--danger-ink)" : "var(--ink)",
+        }}
+      >
+        {pct}%
+      </div>
+    </div>
+  )
 }
 
 export default function ObrasPage() {
@@ -62,38 +158,38 @@ export default function ObrasPage() {
   const { role } = useUser()
   const [rows, setRows] = useState<ObraRow[]>([])
   const [isLoading, setIsLoading] = useState(true)
-  const [filtroStatus, setFiltroStatus] = useState<"todos" | string>("todos")
+  const [fStatus, setFStatus] = useState<"todos" | string>("todos")
+  const [fResp, setFResp] = useState<"todos" | string>("todos")
   const [busca, setBusca] = useState("")
+  const [view, setView] = useState<"tabela" | "grade">("tabela")
   const [formOpen, setFormOpen] = useState(false)
 
   const load = useCallback(async () => {
     setIsLoading(true)
     const supabase = createClient()
-    const { data: obraList, error } = await supabase
+    const { data: obras, error } = await supabase
       .from("obra")
-      .select(
-        "id_obra, id_cliente, id_responsavel, nome, status, percentual_finalizada, data_inicio_prevista, data_fim_prevista"
-      )
+      .select("*")
       .order("created_at", { ascending: false })
 
     if (error) {
-      toast.error("Erro ao carregar obras: " + error.message)
+      toast.error("Erro: " + error.message)
       setIsLoading(false)
       return
     }
 
-    const list = obraList ?? []
-    const clienteIds = Array.from(new Set(list.map((o) => o.id_cliente)))
+    const list = obras ?? []
+    const cliIds = Array.from(new Set(list.map((o) => o.id_cliente)))
     const respIds = Array.from(
       new Set(list.filter((o) => o.id_responsavel).map((o) => o.id_responsavel!))
     )
 
     const [{ data: clientes }, { data: resps }] = await Promise.all([
-      clienteIds.length
+      cliIds.length
         ? supabase
             .from("cliente")
             .select("id_cliente, nome")
-            .in("id_cliente", clienteIds)
+            .in("id_cliente", cliIds)
         : Promise.resolve({ data: [] as { id_cliente: number; nome: string }[] }),
       respIds.length
         ? supabase
@@ -105,26 +201,53 @@ export default function ObrasPage() {
           }),
     ])
 
-    const clienteMap = new Map(
+    const cliMap = new Map(
       (clientes ?? []).map((c) => [c.id_cliente, c.nome])
     )
     const respMap = new Map(
       (resps ?? []).map((r) => [r.id_responsavel, r.nome])
     )
 
+    const today = new Date()
     setRows(
-      list.map((o) => ({
-        id_obra: o.id_obra,
-        nome: o.nome,
-        status: o.status ?? "planejamento",
-        percentual_finalizada: o.percentual_finalizada ?? 0,
-        data_inicio_prevista: o.data_inicio_prevista,
-        data_fim_prevista: o.data_fim_prevista,
-        cliente_nome: clienteMap.get(o.id_cliente) ?? "",
-        responsavel_nome: o.id_responsavel
+      list.map((o) => {
+        const fim = o.data_fim_prevista
+        const diasAteFim = fim
+          ? differenceInCalendarDays(parseISO(fim), today)
+          : 0
+        const atrasado =
+          diasAteFim < 0 &&
+          o.status !== "concluida" &&
+          o.status !== "cancelada"
+        const cliNome = cliMap.get(o.id_cliente) ?? ""
+        const respNome = o.id_responsavel
           ? respMap.get(o.id_responsavel) ?? ""
-          : "",
-      }))
+          : ""
+        return {
+          id: `OBR-${String(o.id_obra).padStart(4, "0")}`,
+          rawId: o.id_obra,
+          nome: o.nome,
+          cliente: cliNome,
+          clienteInit: getInitials(cliNome),
+          responsavel: { nome: respNome, init: getInitials(respNome) },
+          endereco: o.endereco ?? "",
+          status: o.status ?? "planejamento",
+          progresso: Math.round(o.percentual_finalizada ?? 0),
+          inicio: o.data_inicio_prevista
+            ? formatDate(o.data_inicio_prevista)
+            : "—",
+          fim: o.data_fim_prevista ? formatDate(o.data_fim_prevista) : "—",
+          diasAteFim,
+          atrasado,
+          orcamento: 0,
+          realizado: 0,
+          tarefasTotal: 0,
+          tarefasConcluidas: 0,
+          tarefasAtrasadas: 0,
+          equipe: 0,
+          entregue: o.data_fim_real ? formatDate(o.data_fim_real) : undefined,
+        }
+      })
     )
     setIsLoading(false)
   }, [])
@@ -133,245 +256,410 @@ export default function ObrasPage() {
     load()
   }, [load])
 
+  const responsaveis = useMemo(
+    () =>
+      Array.from(
+        new Set(rows.map((o) => o.responsavel.nome).filter(Boolean))
+      ).sort(),
+    [rows]
+  )
+
   const filtered = useMemo(
     () =>
       rows.filter((o) => {
-        if (filtroStatus !== "todos" && o.status !== filtroStatus) return false
-        if (busca) {
-          const q = busca.toLowerCase()
-          const haystack = [o.nome, o.cliente_nome, o.responsavel_nome]
-            .join(" ")
+        if (fStatus !== "todos" && o.status !== fStatus) return false
+        if (fResp !== "todos" && o.responsavel.nome !== fResp) return false
+        if (
+          busca &&
+          !(o.nome + o.cliente + o.id)
             .toLowerCase()
-          if (!haystack.includes(q)) return false
-        }
+            .includes(busca.toLowerCase())
+        )
+          return false
         return true
       }),
-    [rows, filtroStatus, busca]
+    [rows, fStatus, fResp, busca]
   )
 
-  const total = rows.length
-  const emAndamento = rows.filter((o) => o.status === "em_andamento").length
-  const planejamento = rows.filter((o) => o.status === "planejamento").length
-  const concluidas = rows.filter((o) => o.status === "concluida").length
-  const progressoMedio =
-    rows.length === 0
-      ? 0
-      : Math.round(
-          rows
-            .filter((r) => r.status !== "cancelada")
-            .reduce((a, r) => a + (r.percentual_finalizada ?? 0), 0) /
-            Math.max(rows.filter((r) => r.status !== "cancelada").length, 1)
-        )
+  const ativas = rows.filter((o) => o.status === "em_andamento").length
+  const pausadas = rows.filter((o) => o.status === "pausada").length
+  const atrasadas = rows.filter((o) => o.atrasado).length
+  const planejadas = rows.filter((o) => o.status === "planejamento").length
 
   const canCreate = role === "diretor" || role === "arquiteta"
 
   return (
-    <div className="space-y-6">
-      <PageHeader
-        eyebrow="Operação"
-        title="Obras"
-        subtitle={`${total} obra${total === 1 ? "" : "s"} cadastrada${total === 1 ? "" : "s"} · ${emAndamento} em andamento`}
-        actions={
-          <>
-            <Button variant="ghost" size="sm" disabled>
-              <Upload data-icon="inline-start" />
-              Importar
-            </Button>
-            <Button variant="outline" size="sm" disabled>
-              <Download data-icon="inline-start" />
+    <>
+      <div className="page-head">
+        <div className="page-head-top">
+          <div className="page-head-title">
+            <div className="obra-id">Portfólio</div>
+            <h1>Obras</h1>
+            <div className="subtitle">
+              {rows.length} obras no portfólio · {ativas} em andamento ·{" "}
+              {atrasadas > 0 ? (
+                <span style={{ color: "var(--danger-ink)", fontWeight: 500 }}>
+                  {atrasadas} com atraso
+                </span>
+              ) : (
+                "0 atrasadas"
+              )}
+            </div>
+          </div>
+          <div className="page-head-actions">
+            <button className="btn btn-ghost" type="button" disabled>
+              <Icon name="download" />
               Exportar
-            </Button>
+            </button>
             {canCreate ? (
-              <Button size="sm" onClick={() => setFormOpen(true)}>
-                <Plus data-icon="inline-start" />
+              <button
+                className="btn btn-primary"
+                type="button"
+                onClick={() => setFormOpen(true)}
+              >
+                <Icon name="plus" />
                 Nova obra
-              </Button>
+              </button>
             ) : null}
-          </>
-        }
-      />
+          </div>
+        </div>
+      </div>
 
-      <KpiGrid cols={4}>
-        <KpiCard
-          label="Total de obras"
-          value={total}
-          sub={`${concluidas} concluída${concluidas === 1 ? "" : "s"}`}
-          icon={<Building />}
-        />
-        <KpiCard
-          tone="info"
-          label="Em andamento"
-          value={emAndamento}
-          sub={`${total ? Math.round((emAndamento * 100) / total) : 0}% do total`}
-          icon={<Activity />}
-        />
-        <KpiCard
-          tone="primary"
-          label="Em planejamento"
-          value={planejamento}
-          sub="Aguardando início"
-          icon={<ClipboardList />}
-        />
-        <KpiCard
-          tone={
-            progressoMedio >= 80
-              ? "success"
-              : progressoMedio >= 50
-                ? "info"
-                : "warning"
-          }
-          label="Progresso médio"
-          value={`${progressoMedio}%`}
-          sub="Obras ativas"
-          icon={<CheckCircle2 />}
-        />
-      </KpiGrid>
+      <div className="list-kpis">
+        <div className="list-kpi tone-info">
+          <div className="list-kpi-label">Em andamento</div>
+          <div className="list-kpi-value">{ativas}</div>
+          <div className="list-kpi-sub">
+            <Icon name="construction" />
+            Canteiros ativos agora
+          </div>
+        </div>
+        <div className="list-kpi tone-warning">
+          <div className="list-kpi-label">Pausadas</div>
+          <div className="list-kpi-value">{pausadas}</div>
+          <div className="list-kpi-sub">
+            <Icon name="clock" />
+            Aguardando desimpedimento
+          </div>
+        </div>
+        <div className="list-kpi tone-danger">
+          <div className="list-kpi-label">Com atraso</div>
+          <div className="list-kpi-value">{atrasadas}</div>
+          <div className="list-kpi-sub">
+            <Icon name="alertTriangle" />
+            Exigem atenção imediata
+          </div>
+        </div>
+        <div className="list-kpi">
+          <div className="list-kpi-label">Planejamento</div>
+          <div className="list-kpi-value">{planejadas}</div>
+          <div className="list-kpi-sub">
+            <Icon name="layout" />
+            Ainda não iniciadas
+          </div>
+        </div>
+      </div>
 
-      <div className="overflow-hidden rounded-md border border-border bg-card">
-        <div className="flex flex-col gap-3 border-b border-border p-4 lg:flex-row lg:items-center lg:justify-between">
-          <div className="relative max-w-md flex-1">
-            <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              type="search"
-              placeholder="Buscar por nome, cliente, responsável…"
+      <div className="card" style={{ marginTop: 18 }}>
+        <div className="card-head list-toolbar">
+          <div className="list-search">
+            <Icon name="search" />
+            <input
+              type="text"
+              placeholder="Buscar por nome da obra, cliente ou código…"
               value={busca}
               onChange={(e) => setBusca(e.target.value)}
-              className="h-9 pl-9"
             />
           </div>
-          <SegmentedControl
-            value={filtroStatus}
-            onValueChange={setFiltroStatus}
-            options={STATUS_OPTIONS}
-            ariaLabel="Status"
-          />
+          <div className="list-filters">
+            <div className="seg">
+              {(
+                [
+                  { id: "todos", label: "Todas" },
+                  { id: "em_andamento", label: "Em andamento" },
+                  { id: "pausada", label: "Pausadas" },
+                  { id: "planejamento", label: "Planejamento" },
+                  { id: "concluida", label: "Concluídas" },
+                ] as const
+              ).map((t) => (
+                <button
+                  key={t.id}
+                  type="button"
+                  className={"seg-btn" + (fStatus === t.id ? " active" : "")}
+                  onClick={() => setFStatus(t.id)}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
+            <div className="seg-select">
+              <Icon name="user" />
+              <select
+                value={fResp}
+                onChange={(e) => setFResp(e.target.value)}
+              >
+                <option value="todos">Todos responsáveis</option>
+                {responsaveis.map((r) => (
+                  <option key={r} value={r}>
+                    {r}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="seg">
+              <button
+                type="button"
+                className={"seg-btn" + (view === "tabela" ? " active" : "")}
+                onClick={() => setView("tabela")}
+                title="Visão em tabela"
+              >
+                <Icon name="list" />
+              </button>
+              <button
+                type="button"
+                className={"seg-btn" + (view === "grade" ? " active" : "")}
+                onClick={() => setView("grade")}
+                title="Visão em cards"
+              >
+                <Icon name="layers" />
+              </button>
+            </div>
+          </div>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="min-w-full">
-            <thead>
-              <tr className="border-b border-border bg-muted/60 text-[11px] uppercase tracking-wider text-muted-foreground">
-                <th className="px-5 py-2.5 text-left font-semibold">Obra</th>
-                <th className="px-5 py-2.5 text-left font-semibold">Cliente</th>
-                <th className="px-5 py-2.5 text-left font-semibold">Status</th>
-                <th className="min-w-[200px] px-5 py-2.5 text-left font-semibold">
-                  Progresso
-                </th>
-                <th className="px-5 py-2.5 text-left font-semibold">
-                  Responsável
-                </th>
-                <th className="px-5 py-2.5 text-left font-semibold">Prazo</th>
-                <th className="w-12 px-2 py-2.5"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {isLoading ? (
-                <tr>
-                  <td
-                    colSpan={7}
-                    className="px-5 py-12 text-center text-sm text-muted-foreground"
-                  >
-                    Carregando obras…
-                  </td>
-                </tr>
-              ) : filtered.length === 0 ? (
-                <tr>
-                  <td
-                    colSpan={7}
-                    className="px-5 py-16 text-center text-sm text-muted-foreground"
-                  >
-                    {rows.length === 0
-                      ? "Nenhuma obra cadastrada. Crie a primeira."
-                      : "Nenhuma obra encontrada com esses filtros."}
-                  </td>
-                </tr>
-              ) : (
-                filtered.map((o) => (
-                  <tr
-                    key={o.id_obra}
-                    className="cursor-pointer border-b border-border transition-colors last:border-b-0 hover:bg-muted/40"
-                    onClick={() => router.push(`/obras/${o.id_obra}`)}
-                  >
-                    <td className="px-5 py-3">
-                      <div className="text-[13.5px] font-medium text-foreground">
-                        {o.nome}
+        {view === "tabela" ? (
+          <div className="list-table list-obras">
+            <div className="list-thead">
+              <div>Obra</div>
+              <div>Cliente</div>
+              <div>Responsável</div>
+              <div>Prazo</div>
+              <div>Progresso</div>
+              <div className="num">Orçamento</div>
+              <div>Status</div>
+              <div></div>
+            </div>
+            {isLoading ? (
+              <div
+                style={{
+                  padding: "60px 24px",
+                  textAlign: "center",
+                  color: "var(--ink-muted)",
+                  fontSize: 13.5,
+                }}
+              >
+                Carregando…
+              </div>
+            ) : filtered.length === 0 ? (
+              <div
+                style={{
+                  padding: "60px 24px",
+                  textAlign: "center",
+                  color: "var(--ink-muted)",
+                  fontSize: 13.5,
+                }}
+              >
+                Nenhuma obra encontrada com esses filtros.
+              </div>
+            ) : (
+              filtered.map((o) => (
+                <div
+                  className={"list-row2" + (o.atrasado ? " row-danger" : "")}
+                  key={o.id}
+                  onClick={() => router.push(`/obras/${o.rawId}`)}
+                  style={{ cursor: "pointer" }}
+                >
+                  <div className="list-cell-name">
+                    <span
+                      className="avatar-sm avatar-obra"
+                      style={{
+                        background: STATUS_META[o.status]?.bg,
+                        color: STATUS_META[o.status]?.fg,
+                      }}
+                    >
+                      <Icon name="construction" />
+                    </span>
+                    <div className="list-name-block">
+                      <div className="nm">
+                        <a>{o.nome}</a>
                       </div>
-                      <div className="mono mt-0.5 text-[11.5px] text-muted-foreground tabular-nums">
-                        {obraCode(o.id_obra)}
+                      <div className="sub">
+                        {o.id}
+                        {o.endereco ? ` · ${o.endereco}` : ""}
                       </div>
-                    </td>
-                    <td className="px-5 py-3 text-[13px] text-foreground">
-                      {o.cliente_nome || (
-                        <span className="text-muted-foreground">—</span>
+                    </div>
+                  </div>
+                  <div>
+                    <div className="em">{o.cliente || "—"}</div>
+                    <div className="sub">
+                      {o.tarefasTotal} tarefas · {o.equipe} na equipe
+                    </div>
+                  </div>
+                  <div className="list-cell-contact">
+                    <div
+                      className="em"
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 8,
+                      }}
+                    >
+                      {o.responsavel.nome ? (
+                        <>
+                          <span className="avatar-xs">
+                            {o.responsavel.init}
+                          </span>
+                          {o.responsavel.nome}
+                        </>
+                      ) : (
+                        <span style={{ color: "var(--ink-muted)" }}>—</span>
                       )}
-                    </td>
-                    <td className="px-5 py-3">
-                      <StatusBadge
-                        status={o.status}
-                        statusMap={OBRA_STATUS}
-                      />
-                    </td>
-                    <td className="px-5 py-3">
-                      <div className="flex items-center gap-3">
-                        <ProgressBar
-                          value={o.percentual_finalizada ?? 0}
-                          className="w-32"
-                        />
-                        <span
-                          className={cn(
-                            "mono w-10 text-right text-[12px] font-medium tabular-nums",
-                            o.percentual_finalizada >= 80
-                              ? "text-[var(--success-ink)]"
-                              : "text-muted-foreground"
-                          )}
-                        >
-                          {Math.round(o.percentual_finalizada ?? 0)}%
-                        </span>
-                      </div>
-                    </td>
-                    <td className="px-5 py-3 text-[13px] text-foreground">
-                      {o.responsavel_nome || (
-                        <span className="text-muted-foreground">—</span>
-                      )}
-                    </td>
-                    <td className="px-5 py-3">
-                      <div className="flex items-center gap-2 text-[12.5px] text-foreground">
-                        <Calendar className="size-3.5 shrink-0 text-muted-foreground" />
-                        <div className="tabular-nums">
-                          {o.data_inicio_prevista
-                            ? formatDate(o.data_inicio_prevista)
-                            : "—"}
-                          {o.data_fim_prevista ? (
-                            <>
-                              {" "}
-                              <span className="text-muted-foreground">→</span>{" "}
-                              {formatDate(o.data_fim_prevista)}
-                            </>
-                          ) : null}
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-2 py-3 text-right">
-                      <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        onClick={(e) => e.stopPropagation()}
-                        aria-label="Mais ações"
+                    </div>
+                  </div>
+                  <div className="list-cell-prazo">
+                    <div className="mono sub">
+                      {o.inicio} → {o.fim}
+                    </div>
+                    {o.status === "concluida" && o.entregue ? (
+                      <div
+                        className="sub"
+                        style={{
+                          color: "var(--success-ink)",
+                          fontWeight: 500,
+                        }}
                       >
-                        <MoreHorizontal />
-                      </Button>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+                        Entregue em {o.entregue}
+                      </div>
+                    ) : o.atrasado ? (
+                      <div
+                        className="sub"
+                        style={{
+                          color: "var(--danger-ink)",
+                          fontWeight: 500,
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 4,
+                        }}
+                      >
+                        <Icon name="alertTriangle" />
+                        Atrasada · {Math.abs(o.diasAteFim)} dias
+                      </div>
+                    ) : (
+                      <div className="sub">
+                        {o.diasAteFim > 0
+                          ? `Faltam ${o.diasAteFim} dias`
+                          : "—"}
+                      </div>
+                    )}
+                  </div>
+                  <div className="list-cell-progress">
+                    <ObraProgress
+                      pct={o.progresso}
+                      status={o.status}
+                      atrasado={o.atrasado}
+                    />
+                  </div>
+                  <div className="list-cell-num">
+                    <div className="val mono">{fmtBRL(o.orcamento)}</div>
+                    {o.orcamento > 0 ? (
+                      <div
+                        className="sub mono"
+                        style={{
+                          color:
+                            o.realizado > o.orcamento
+                              ? "var(--danger-ink)"
+                              : "var(--ink-muted)",
+                        }}
+                      >
+                        {Math.round((o.realizado / o.orcamento) * 100)}%
+                        realizado
+                      </div>
+                    ) : null}
+                  </div>
+                  <div className="list-cell-status">
+                    <StatusBadge s={o.status} />
+                  </div>
+                  <div className="list-cell-actions">
+                    <button
+                      type="button"
+                      className="icon-btn"
+                      title="Abrir painel"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        router.push(`/obras/${o.rawId}`)
+                      }}
+                    >
+                      <Icon name="arrowRight" />
+                    </button>
+                    <button
+                      type="button"
+                      className="icon-btn"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <Icon name="more" />
+                    </button>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        ) : (
+          <div className="obras-grid">
+            {filtered.map((o) => (
+              <a
+                className={"obra-card" + (o.atrasado ? " is-danger" : "")}
+                key={o.id}
+                onClick={() => router.push(`/obras/${o.rawId}`)}
+                style={{ cursor: "pointer" }}
+              >
+                <div className="obra-card-top">
+                  <StatusBadge s={o.status} />
+                  <div className="obra-card-id mono">{o.id}</div>
+                </div>
+                <div className="obra-card-title">{o.nome}</div>
+                <div className="obra-card-meta">
+                  <span className="avatar-xs">{o.clienteInit}</span>
+                  {o.cliente || "—"}
+                </div>
+                <div className="obra-card-progress">
+                  <ObraProgress
+                    pct={o.progresso}
+                    status={o.status}
+                    atrasado={o.atrasado}
+                  />
+                </div>
+                <div className="obra-card-foot">
+                  <div>
+                    <div className="sub">Prazo</div>
+                    <div className="em mono">{o.fim}</div>
+                  </div>
+                  <div>
+                    <div className="sub">Equipe</div>
+                    <div className="em">{o.equipe} pessoas</div>
+                  </div>
+                  <div>
+                    <div className="sub">Realizado</div>
+                    <div className="em mono">{fmtBRL(o.realizado)}</div>
+                  </div>
+                </div>
+              </a>
+            ))}
+          </div>
+        )}
 
-        <div className="flex items-center justify-between border-t border-border px-5 py-3 text-[12.5px] text-muted-foreground">
-          <span>
-            Mostrando {filtered.length} de {total} obra{total !== 1 ? "s" : ""}
-          </span>
+        <div className="list-foot">
+          <div className="sub">
+            Mostrando {filtered.length} de {rows.length} obras
+          </div>
+          <div className="list-pag">
+            <button className="icon-btn" disabled>
+              <Icon name="chevronLeft" />
+            </button>
+            <span className="mono">1 / 1</span>
+            <button className="icon-btn" disabled>
+              <Icon name="chevronRight" />
+            </button>
+          </div>
         </div>
       </div>
 
@@ -380,6 +668,6 @@ export default function ObrasPage() {
         onOpenChange={setFormOpen}
         onSuccess={load}
       />
-    </div>
+    </>
   )
 }

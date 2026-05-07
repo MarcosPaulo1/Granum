@@ -1,40 +1,60 @@
 "use client"
 
-import { useState } from "react"
-import {
-  Activity,
-  Briefcase,
-  CalendarDays,
-  Languages,
-  Lock,
-  Mail,
-  MapPin,
-  Monitor,
-  Phone,
-  Smartphone,
-  User,
-} from "lucide-react"
+// Port literal de granum-design/perfil-app.jsx + Perfil.html
 
-import { Avatar } from "@/components/shared/avatar"
-import { CategoryChip } from "@/components/shared/category-chip"
-import { KpiCard, KpiGrid } from "@/components/shared/kpi-card"
-import { PageHeader } from "@/components/shared/page-header"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { useState } from "react"
+
+import { Icon } from "@/components/granum/icon"
 import { ROLES } from "@/lib/constants"
 import { useUser } from "@/lib/hooks/use-user"
 import { formatDate } from "@/lib/utils/format"
 
+function getInitials(nome: string): string {
+  const parts = nome.trim().split(/\s+/).filter(Boolean)
+  if (parts.length === 0) return "?"
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase()
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
+}
+
+function Field({
+  label,
+  value,
+  type = "text",
+  cols = 1,
+}: {
+  label: string
+  value: string
+  type?: string
+  cols?: 1 | 2
+}) {
+  return (
+    <div className="field" style={{ gridColumn: `span ${cols}` }}>
+      <label className="field-label">{label}</label>
+      <input
+        className="input"
+        type={type}
+        defaultValue={value}
+        readOnly
+      />
+    </div>
+  )
+}
+
 export default function PerfilPage() {
   const { user, responsavel, role, isLoading } = useUser()
-  const [theme, setTheme] = useState<"light" | "dark" | "auto">("light")
+  const [tab, setTab] = useState<"dados" | "seg" | "atividade" | "prefs">(
+    "dados"
+  )
 
   if (isLoading) {
     return (
-      <div className="flex h-64 items-center justify-center text-sm text-muted-foreground">
+      <div
+        style={{
+          padding: "60px 24px",
+          textAlign: "center",
+          color: "var(--ink-muted)",
+        }}
+      >
         Carregando perfil…
       </div>
     )
@@ -42,290 +62,377 @@ export default function PerfilPage() {
 
   if (!user) {
     return (
-      <div className="flex h-64 items-center justify-center text-sm text-muted-foreground">
-        Usuário não autenticado.
+      <div
+        style={{
+          padding: "60px 24px",
+          textAlign: "center",
+          color: "var(--ink-muted)",
+        }}
+      >
+        Não autenticado.
       </div>
     )
   }
 
   const nome = responsavel?.nome ?? user.email ?? "Usuário"
-  const cargo = responsavel?.cargo ?? "—"
-  const departamento = responsavel?.departamento ?? "—"
   const email = responsavel?.email ?? user.email ?? "—"
-  const telefone = responsavel?.telefone ?? null
-  const admissao = responsavel?.data_admissao ?? null
+  const cargo = responsavel?.cargo ?? "—"
+  const telefone = responsavel?.telefone ?? "—"
+  const whatsapp = responsavel?.telefone_whatsapp ?? telefone
+  const departamento = responsavel?.departamento ?? "—"
+  const dataAdmissao = responsavel?.data_admissao
+    ? formatDate(responsavel.data_admissao)
+    : "—"
   const roleLabel = role ? (ROLES as Record<string, string>)[role] ?? role : "—"
 
   return (
-    <div className="space-y-6">
-      <PageHeader
-        eyebrow="Conta · Sistema"
-        title="Meu perfil"
-        subtitle="Informações pessoais, segurança e preferências"
-      />
-
-      <Card>
-        <CardContent className="py-6">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-center gap-4">
-              <Avatar
-                variant="user"
-                name={nome}
-                size="xl"
-                className="shrink-0"
-              />
-              <div className="min-w-0">
-                <h2 className="text-[20px] font-semibold tracking-tight text-foreground">
-                  {nome}
-                </h2>
-                <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12.5px] text-muted-foreground">
-                  <span className="inline-flex items-center gap-1">
-                    <Briefcase className="size-3.5" />
-                    {cargo}
-                  </span>
-                  {departamento !== "—" ? (
-                    <span className="inline-flex items-center gap-1">
-                      <MapPin className="size-3.5" />
-                      {departamento}
-                    </span>
-                  ) : null}
-                  <CategoryChip tone="primary">{roleLabel}</CategoryChip>
-                </div>
-              </div>
-            </div>
-            <div className="flex gap-2">
-              <Button variant="outline" size="sm" disabled>
-                Editar perfil
-              </Button>
-            </div>
+    <>
+      <div className="profile-hero">
+        <div className="profile-avatar">{getInitials(nome)}</div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div className="obra-id">
+            {roleLabel}
+            {role === "diretor" ? " · acesso total" : ""}
           </div>
-        </CardContent>
-      </Card>
-
-      <KpiGrid cols={4}>
-        <KpiCard
-          label="Cargo"
-          value={cargo}
-          sub={departamento !== "—" ? departamento : "Sem departamento"}
-          icon={<Briefcase />}
-        />
-        <KpiCard
-          tone="primary"
-          label="Perfil de acesso"
-          value={roleLabel}
-          sub="Permissões aplicadas"
-          icon={<User />}
-        />
-        <KpiCard
-          tone="info"
-          label="E-mail"
-          value={
-            <span className="text-[16px] font-normal break-all">{email}</span>
-          }
-          sub={user.email_confirmed_at ? "Confirmado" : "Não confirmado"}
-          icon={<Mail />}
-        />
-        <KpiCard
-          label="Admissão"
-          value={admissao ? formatDate(admissao) : "—"}
-          sub="Data de entrada"
-          icon={<CalendarDays />}
-        />
-      </KpiGrid>
-
-      <Tabs defaultValue="dados">
-        <TabsList className="w-full justify-start overflow-x-auto rounded-md border border-border bg-card p-1">
-          <TabsTrigger value="dados">Dados pessoais</TabsTrigger>
-          <TabsTrigger value="seguranca">Segurança</TabsTrigger>
-          <TabsTrigger value="atividade">Atividade</TabsTrigger>
-          <TabsTrigger value="preferencias">Preferências</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="dados" className="space-y-4">
-          <Card>
-            <CardContent className="py-5">
-              <h3 className="mb-4 text-[15px] font-semibold text-foreground">
-                Informações pessoais
-              </h3>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <Field label="Nome completo" value={nome} icon={User} />
-                <Field label="E-mail" value={email} icon={Mail} />
-                <Field
-                  label="Telefone"
-                  value={telefone ?? "—"}
-                  icon={Phone}
-                />
-                <Field label="Cargo" value={cargo} icon={Briefcase} />
-                <Field
-                  label="Departamento"
-                  value={departamento}
-                  icon={MapPin}
-                />
-                <Field
-                  label="Data de admissão"
-                  value={admissao ? formatDate(admissao) : "—"}
-                  icon={CalendarDays}
-                />
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="seguranca" className="space-y-4">
-          <Card>
-            <CardContent className="space-y-4 py-5">
-              <div className="flex items-start justify-between gap-3">
-                <div className="space-y-0.5">
-                  <h3 className="text-[15px] font-semibold text-foreground">
-                    Senha
-                  </h3>
-                  <p className="text-[12.5px] text-muted-foreground">
-                    Última atualização não disponível
-                  </p>
-                </div>
-                <Button variant="outline" size="sm" disabled>
-                  <Lock data-icon="inline-start" />
-                  Alterar senha
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="space-y-3 py-5">
-              <h3 className="text-[15px] font-semibold text-foreground">
-                Sessões ativas
-              </h3>
-              <div className="space-y-2">
-                <SessionRow
-                  Icon={Monitor}
-                  device="Navegador atual"
-                  meta="Sessão atual · Você está aqui"
-                  active
-                />
-                <SessionRow
-                  Icon={Smartphone}
-                  device="Mobile (não configurado)"
-                  meta="Quando o app móvel estiver disponível"
-                />
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="atividade" className="space-y-4">
-          <Card>
-            <CardContent className="py-8 text-center">
-              <Activity className="mx-auto size-8 text-muted-foreground/60" />
-              <p className="mt-3 text-[13px] text-muted-foreground">
-                Timeline de atividade aparece quando o sistema começar a registrar.
-              </p>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="preferencias" className="space-y-4">
-          <Card>
-            <CardContent className="space-y-4 py-5">
-              <h3 className="text-[15px] font-semibold text-foreground">
-                Aparência
-              </h3>
-              <div>
-                <Label className="mb-2 block text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                  Tema
-                </Label>
-                <div className="flex gap-2">
-                  {(["light", "dark", "auto"] as const).map((t) => (
-                    <Button
-                      key={t}
-                      variant={theme === t ? "default" : "outline"}
-                      size="sm"
-                      onClick={() => setTheme(t)}
-                      disabled
-                    >
-                      {t === "light" ? "Claro" : t === "dark" ? "Escuro" : "Auto"}
-                    </Button>
-                  ))}
-                </div>
-                <p className="mt-1 text-[11px] text-muted-foreground">
-                  Modo escuro implementado em fase futura.
-                </p>
-              </div>
-              <div>
-                <Label className="mb-2 block text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                  Idioma
-                </Label>
-                <div className="flex items-center gap-2">
-                  <Languages className="size-4 text-muted-foreground" />
-                  <span className="text-[13px] text-foreground">
-                    Português (Brasil)
-                  </span>
-                </div>
-              </div>
-              <div>
-                <Label className="mb-2 block text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                  Fuso horário
-                </Label>
-                <span className="text-[13px] text-foreground">
-                  America/Sao_Paulo (UTC−3)
-                </span>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
-    </div>
-  )
-}
-
-interface FieldProps {
-  label: string
-  value: string
-  icon: React.ComponentType<{ className?: string }>
-}
-
-function Field({ label, value, icon: Icon }: FieldProps) {
-  return (
-    <div>
-      <Label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-        {label}
-      </Label>
-      <div className="flex items-center gap-2 rounded-md border border-border bg-muted/40 px-3 py-2">
-        <Icon className="size-4 text-muted-foreground" />
-        <Input
-          value={value}
-          readOnly
-          className="h-auto border-0 bg-transparent p-0 text-[13px] text-foreground"
-        />
-      </div>
-    </div>
-  )
-}
-
-interface SessionRowProps {
-  Icon: React.ComponentType<{ className?: string }>
-  device: string
-  meta: string
-  active?: boolean
-}
-
-function SessionRow({ Icon, device, meta, active }: SessionRowProps) {
-  return (
-    <div className="flex items-center justify-between gap-3 rounded-md border border-border px-3 py-2.5">
-      <div className="flex items-center gap-3">
-        <span className="inline-flex size-8 items-center justify-center rounded-md bg-muted text-muted-foreground">
-          <Icon className="size-4" />
-        </span>
-        <div>
-          <div className="text-[13px] font-medium text-foreground">{device}</div>
-          <div className="text-[11.5px] text-muted-foreground">{meta}</div>
+          <h1 style={{ margin: "2px 0 4px" }}>{nome}</h1>
+          <div className="profile-meta">
+            <span>
+              <Icon name="mail" />
+              {email}
+            </span>
+            {telefone && telefone !== "—" ? (
+              <span>
+                <Icon name="phone" />
+                {telefone}
+              </span>
+            ) : null}
+            <span>
+              <Icon name="briefcase" />
+              {cargo}
+            </span>
+            {responsavel?.data_admissao ? (
+              <span>
+                <Icon name="calendar" />
+                Membro desde {dataAdmissao}
+              </span>
+            ) : null}
+          </div>
+        </div>
+        <div
+          style={{
+            display: "flex",
+            gap: 8,
+            flexShrink: 0,
+            alignSelf: "flex-start",
+          }}
+        >
+          <button className="btn btn-ghost btn-sm" disabled>
+            <Icon name="logout" />
+            Sair
+          </button>
+          <button className="btn btn-primary btn-sm" disabled>
+            <Icon name="edit" />
+            Editar perfil
+          </button>
         </div>
       </div>
-      {active ? (
-        <CategoryChip tone="success">
-          <span className="size-1.5 rounded-full bg-[var(--success)]" />
-          Ativa
-        </CategoryChip>
-      ) : null}
-    </div>
+
+      <div
+        className="list-kpis"
+        style={{ gridTemplateColumns: "repeat(4, 1fr)" }}
+      >
+        <div className="list-kpi">
+          <div className="list-kpi-label">Cargo</div>
+          <div
+            className="list-kpi-value"
+            style={{ fontSize: 16, fontWeight: 500 }}
+          >
+            {cargo}
+          </div>
+          <div className="list-kpi-sub">
+            <Icon name="briefcase" />
+            {departamento}
+          </div>
+        </div>
+        <div className="list-kpi tone-info">
+          <div className="list-kpi-head">
+            <div className="list-kpi-label">Perfil de acesso</div>
+            <div className="kpi-icon">
+              <Icon name="shield" />
+            </div>
+          </div>
+          <div
+            className="list-kpi-value"
+            style={{ fontSize: 16, fontWeight: 500 }}
+          >
+            {roleLabel}
+          </div>
+          <div className="list-kpi-sub">
+            <Icon name="check" />
+            Permissões aplicadas
+          </div>
+        </div>
+        <div className="list-kpi">
+          <div className="list-kpi-label">E-mail</div>
+          <div
+            className="list-kpi-value"
+            style={{ fontSize: 14, fontWeight: 500, wordBreak: "break-all" }}
+          >
+            {email}
+          </div>
+          <div className="list-kpi-sub">
+            <Icon name="check" />
+            {user.email_confirmed_at ? "Confirmado" : "Não confirmado"}
+          </div>
+        </div>
+        <div className="list-kpi">
+          <div className="list-kpi-label">Admissão</div>
+          <div className="list-kpi-value mono">{dataAdmissao}</div>
+          <div className="list-kpi-sub">
+            <Icon name="calendar" />
+            Data de entrada
+          </div>
+        </div>
+      </div>
+
+      <div className="tabs" style={{ marginTop: 18 }}>
+        {(
+          [
+            { id: "dados", label: "Dados pessoais", icon: "user" },
+            { id: "seg", label: "Segurança", icon: "shield" },
+            { id: "atividade", label: "Atividade", icon: "activity" },
+            { id: "prefs", label: "Preferências", icon: "settings" },
+          ] as const
+        ).map((t) => (
+          <button
+            key={t.id}
+            type="button"
+            className={"tab" + (tab === t.id ? " active" : "")}
+            onClick={() => setTab(t.id)}
+          >
+            <Icon name={t.icon} /> {t.label}
+          </button>
+        ))}
+      </div>
+
+      <div style={{ marginTop: 18 }}>
+        {tab === "dados" ? (
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "2fr 1fr",
+              gap: 18,
+            }}
+          >
+            <div className="card">
+              <div className="card-head">
+                <div>
+                  <div
+                    style={{
+                      fontSize: 11,
+                      color: "var(--ink-muted)",
+                      textTransform: "uppercase",
+                      letterSpacing: "0.04em",
+                    }}
+                  >
+                    Identificação
+                  </div>
+                  <div style={{ fontSize: 15, fontWeight: 600 }}>
+                    Dados pessoais
+                  </div>
+                </div>
+              </div>
+              <div className="card-body">
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "1fr 1fr",
+                    gap: 14,
+                  }}
+                >
+                  <Field label="Nome completo" value={nome} cols={2} />
+                  <Field label="E-mail" value={email} type="email" cols={2} />
+                  <Field label="Telefone" value={telefone} type="tel" />
+                  <Field label="WhatsApp" value={whatsapp} type="tel" />
+                  <Field label="Cargo" value={cargo} cols={2} />
+                  <Field label="Departamento" value={departamento} />
+                  <Field label="Admissão" value={dataAdmissao} />
+                </div>
+              </div>
+            </div>
+
+            <div
+              style={{ display: "flex", flexDirection: "column", gap: 18 }}
+            >
+              <div className="card">
+                <div className="card-head">
+                  <div>
+                    <div
+                      style={{
+                        fontSize: 11,
+                        color: "var(--ink-muted)",
+                        textTransform: "uppercase",
+                        letterSpacing: "0.04em",
+                      }}
+                    >
+                      Foto
+                    </div>
+                    <div style={{ fontSize: 15, fontWeight: 600 }}>Avatar</div>
+                  </div>
+                </div>
+                <div
+                  className="card-body"
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    gap: 12,
+                  }}
+                >
+                  <div
+                    className="profile-avatar"
+                    style={{ width: 120, height: 120, fontSize: 42 }}
+                  >
+                    {getInitials(nome)}
+                  </div>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-sm"
+                      disabled
+                    >
+                      <Icon name="upload" />
+                      Enviar foto
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-ghost btn-sm"
+                      disabled
+                    >
+                      Remover
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
+        {tab === "seg" ? (
+          <div className="card">
+            <div className="card-head">
+              <div>
+                <div
+                  style={{
+                    fontSize: 11,
+                    color: "var(--ink-muted)",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.04em",
+                  }}
+                >
+                  Autenticação
+                </div>
+                <div style={{ fontSize: 15, fontWeight: 600 }}>
+                  Senha e sessões
+                </div>
+              </div>
+            </div>
+            <div className="card-body">
+              <div
+                style={{
+                  fontSize: 12.5,
+                  color: "var(--ink-muted)",
+                  marginBottom: 12,
+                }}
+              >
+                Gerenciamento de senha e sessões em desenvolvimento.
+              </div>
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                disabled
+              >
+                <Icon name="key" />
+                Alterar senha
+              </button>
+            </div>
+          </div>
+        ) : null}
+
+        {tab === "atividade" ? (
+          <div className="card">
+            <div
+              className="card-body"
+              style={{
+                padding: 40,
+                textAlign: "center",
+                color: "var(--ink-muted)",
+              }}
+            >
+              <Icon name="activity" />
+              <div style={{ marginTop: 12, fontSize: 13 }}>
+                Timeline de atividade em desenvolvimento.
+              </div>
+            </div>
+          </div>
+        ) : null}
+
+        {tab === "prefs" ? (
+          <div className="card">
+            <div className="card-head">
+              <div>
+                <div
+                  style={{
+                    fontSize: 11,
+                    color: "var(--ink-muted)",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.04em",
+                  }}
+                >
+                  Aparência
+                </div>
+                <div style={{ fontSize: 15, fontWeight: 600 }}>
+                  Tema e idioma
+                </div>
+              </div>
+            </div>
+            <div className="card-body">
+              <div
+                style={{
+                  fontSize: 12.5,
+                  color: "var(--ink-muted)",
+                  marginBottom: 16,
+                }}
+              >
+                Idioma: Português (Brasil) · Fuso: America/Sao_Paulo (UTC−3)
+              </div>
+              <div style={{ display: "flex", gap: 8 }}>
+                <button
+                  type="button"
+                  className="btn btn-primary btn-sm"
+                  disabled
+                >
+                  Claro
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-sm"
+                  disabled
+                >
+                  Escuro
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-sm"
+                  disabled
+                >
+                  Auto
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
+      </div>
+    </>
   )
 }
