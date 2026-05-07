@@ -1,72 +1,104 @@
 "use client"
 
+// Port literal de granum-design/folha-semanal-app.jsx + FolhaSemanal.html
+
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { addDays, eachDayOfInterval, format, startOfWeek } from "date-fns"
 import { ptBR } from "date-fns/locale"
-import {
-  Activity,
-  ChevronLeft,
-  ChevronRight,
-  Check,
-  Clock,
-  DollarSign,
-  Download,
-  Search,
-  Users,
-} from "lucide-react"
 import { toast } from "sonner"
 
-import { Avatar } from "@/components/shared/avatar"
-import { CategoryChip } from "@/components/shared/category-chip"
-import { KpiCard, KpiGrid } from "@/components/shared/kpi-card"
-import { PageHeader } from "@/components/shared/page-header"
-import {
-  SegmentedControl,
-  type SegmentedOption,
-} from "@/components/shared/segmented-control"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { TIPO_VINCULO } from "@/lib/constants"
+import { Icon } from "@/components/granum/icon"
 import { createClient } from "@/lib/supabase/client"
-import { cn } from "@/lib/utils"
-import { formatBRL } from "@/lib/utils/format"
-
-const DAYS_LABEL = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"]
-
-interface DayCell {
-  valor: number
-  tipo: string // integral | meia | falta_justificada | falta
-}
 
 interface FolhaRow {
-  id_trabalhador: number
-  trabalhador: string
-  especialidade: string | null
-  pix_chave: string | null
-  tipo_vinculo: string | null
-  id_obra: number
+  id: string
+  rawId: number
+  nome: string
+  init: string
+  esp: string
   obra: string
-  dias: (DayCell | null)[]
-  total: number
-  presencas: number
+  id_obra: number
+  vinculo: "diaria" | "empreitada" | "mensal"
+  valor: number
+  dias: number[]
+  diasValor: number[]
+  pix: string
+  status: "pago" | "pronto" | "agendado" | "aberto"
+  obs?: string
 }
 
-const VINC_LABEL: Record<string, string> = {
-  ...TIPO_VINCULO,
-  diaria: "Diária",
-  empreitada: "Empreitada",
-  mensal: "Mensal",
+const VINC_BADGE: Record<
+  string,
+  { label: string; bg: string; fg: string }
+> = {
+  diaria: {
+    label: "Diária",
+    bg: "var(--info-soft)",
+    fg: "var(--info-ink)",
+  },
+  empreitada: {
+    label: "Empreitada",
+    bg: "var(--warning-soft)",
+    fg: "var(--warning-ink)",
+  },
+  mensal: {
+    label: "Mensal",
+    bg: "var(--success-soft)",
+    fg: "var(--success-ink)",
+  },
 }
 
-function vincTone(
-  v: string | null
-): "primary" | "info" | "success" | "warning" | "neutral" {
-  if (!v) return "neutral"
-  if (v === "diaria" || v === "autonomo") return "info"
-  if (v === "empreitada" || v === "empreiteiro") return "warning"
-  if (v === "mensal" || v === "clt") return "success"
-  if (v === "pj") return "primary"
-  return "neutral"
+const STATUS_META: Record<string, { cls: string; label: string }> = {
+  pago: { cls: "badge-success", label: "Pago" },
+  pronto: { cls: "badge-info", label: "Pronto p/ pagar" },
+  agendado: { cls: "badge-warning", label: "Agendado" },
+  aberto: { cls: "badge-neutral", label: "Em aberto" },
+}
+
+function getInitials(nome: string): string {
+  const parts = nome.trim().split(/\s+/).filter(Boolean)
+  if (parts.length === 0) return "?"
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase()
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
+}
+
+function fmtBRL(v: number): string {
+  return (
+    "R$ " +
+    v.toLocaleString("pt-BR", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })
+  )
+}
+
+function fmtBRLk(v: number): string {
+  if (v >= 1_000_000)
+    return "R$ " + (v / 1_000_000).toFixed(2).replace(".", ",") + " mi"
+  if (v >= 1000)
+    return "R$ " + Math.round(v / 1000).toLocaleString("pt-BR") + " mil"
+  return "R$ " + v
+}
+
+function VincBadge({ v }: { v: FolhaRow["vinculo"] }) {
+  const m = VINC_BADGE[v] ?? VINC_BADGE.diaria
+  return (
+    <span
+      className="tipo-tag"
+      style={{ background: m.bg, color: m.fg, fontWeight: 500, fontSize: 11 }}
+    >
+      {m.label}
+    </span>
+  )
+}
+
+function StatusBadge({ s }: { s: FolhaRow["status"] }) {
+  const m = STATUS_META[s] ?? STATUS_META.aberto
+  return <span className={"badge dot " + m.cls}>{m.label}</span>
+}
+
+function totalSemana(t: FolhaRow): number {
+  return t.diasValor.reduce((a, v) => a + v, 0)
 }
 
 export default function FolhaPage() {
@@ -75,18 +107,19 @@ export default function FolhaPage() {
   )
   const [rows, setRows] = useState<FolhaRow[]>([])
   const [isLoading, setIsLoading] = useState(true)
-  const [filtroObra, setFiltroObra] = useState<"todas" | string>("todas")
+  const [fObra, setFObra] = useState<"todas" | string>("todas")
+  const [fStatus, setFStatus] = useState<"todos" | FolhaRow["status"]>(
+    "todos"
+  )
   const [busca, setBusca] = useState("")
+  const [sel, setSel] = useState<Set<string>>(new Set())
   const [gerando, setGerando] = useState(false)
 
   const days = useMemo(
-    () =>
-      eachDayOfInterval({
-        start: weekStart,
-        end: addDays(weekStart, 5),
-      }),
+    () => eachDayOfInterval({ start: weekStart, end: addDays(weekStart, 5) }),
     [weekStart]
   )
+  const DIAS = days.map((d) => format(d, "EEE dd", { locale: ptBR }))
 
   const load = useCallback(async () => {
     setIsLoading(true)
@@ -126,15 +159,15 @@ export default function FolhaPage() {
 
     const trabIds = Array.from(new Set(presencas.map((p) => p.id_trabalhador)))
     const obraIds = Array.from(
-      new Set(
-        Array.from(diarioMap.values()).map((d) => d.id_obra)
-      )
+      new Set(Array.from(diarioMap.values()).map((d) => d.id_obra))
     )
 
     const [{ data: trabs }, { data: obras }] = await Promise.all([
       supabase
         .from("trabalhador")
-        .select("id_trabalhador, nome, especialidade, tipo_vinculo, pix_chave")
+        .select(
+          "id_trabalhador, nome, especialidade, tipo_vinculo, pix_chave"
+        )
         .in("id_trabalhador", trabIds),
       supabase.from("obra").select("id_obra, nome").in("id_obra", obraIds),
     ])
@@ -144,51 +177,54 @@ export default function FolhaPage() {
       (obras ?? []).map((o) => [o.id_obra, o.nome as string])
     )
 
-    // Build matrix: key = id_trab+id_obra → row
     const rowsMap = new Map<string, FolhaRow>()
     for (const p of presencas) {
-      const diarioInfo = diarioMap.get(p.id_diario)
-      if (!diarioInfo) continue
-      const trab = trabMap.get(p.id_trabalhador)
-      if (!trab) continue
-      const key = `${p.id_trabalhador}-${diarioInfo.id_obra}`
+      const di = diarioMap.get(p.id_diario)
+      if (!di) continue
+      const t = trabMap.get(p.id_trabalhador)
+      if (!t) continue
+      const key = `${p.id_trabalhador}-${di.id_obra}`
       let row = rowsMap.get(key)
       if (!row) {
+        const vinc =
+          t.tipo_vinculo === "diaria" ||
+          t.tipo_vinculo === "autonomo"
+            ? "diaria"
+            : t.tipo_vinculo === "empreiteiro"
+              ? "empreitada"
+              : t.tipo_vinculo === "clt" || t.tipo_vinculo === "mensal"
+                ? "mensal"
+                : "diaria"
         row = {
-          id_trabalhador: p.id_trabalhador,
-          trabalhador: trab.nome,
-          especialidade: trab.especialidade,
-          pix_chave: trab.pix_chave,
-          tipo_vinculo: trab.tipo_vinculo,
-          id_obra: diarioInfo.id_obra,
-          obra: obraMap.get(diarioInfo.id_obra) ?? "—",
-          dias: Array.from({ length: 6 }, () => null as DayCell | null),
-          total: 0,
-          presencas: 0,
+          id: key,
+          rawId: p.id_trabalhador,
+          nome: t.nome,
+          init: getInitials(t.nome),
+          esp: t.especialidade ?? "",
+          obra: obraMap.get(di.id_obra) ?? "",
+          id_obra: di.id_obra,
+          vinculo: vinc as FolhaRow["vinculo"],
+          valor: 0,
+          dias: Array.from({ length: 6 }, () => 0),
+          diasValor: Array.from({ length: 6 }, () => 0),
+          pix: t.pix_chave ?? "",
+          status: "aberto",
         }
         rowsMap.set(key, row)
       }
-
-      const dayDate = diarioInfo.data
       const dayIdx = days.findIndex(
-        (d) => format(d, "yyyy-MM-dd") === dayDate
+        (d) => format(d, "yyyy-MM-dd") === di.data
       )
       if (dayIdx === -1) continue
-
       const valor = Number(p.valor_dia ?? 0)
-      row.dias[dayIdx] = {
-        valor,
-        tipo: p.tipo_presenca,
-      }
-      row.total += valor
-      if (p.tipo_presenca === "integral" || p.tipo_presenca === "meia") {
-        row.presencas += p.tipo_presenca === "integral" ? 1 : 0.5
-      }
+      row.dias[dayIdx] = 1
+      row.diasValor[dayIdx] = valor
+      if (valor > row.valor) row.valor = valor
     }
 
     setRows(
       Array.from(rowsMap.values()).sort((a, b) =>
-        a.trabalhador.localeCompare(b.trabalhador, "pt-BR")
+        a.nome.localeCompare(b.nome, "pt-BR")
       )
     )
     setIsLoading(false)
@@ -205,73 +241,60 @@ export default function FolhaPage() {
 
   const filtered = useMemo(
     () =>
-      rows.filter((r) => {
-        if (filtroObra !== "todas" && r.obra !== filtroObra) return false
-        if (busca) {
-          const q = busca.toLowerCase()
-          const haystack = [r.trabalhador, r.especialidade, r.obra]
-            .filter(Boolean)
-            .join(" ")
-            .toLowerCase()
-          if (!haystack.includes(q)) return false
-        }
+      rows.filter((t) => {
+        if (fObra !== "todas" && t.obra !== fObra) return false
+        if (fStatus !== "todos" && t.status !== fStatus) return false
+        if (
+          busca &&
+          !(t.nome + t.esp).toLowerCase().includes(busca.toLowerCase())
+        )
+          return false
         return true
       }),
-    [rows, filtroObra, busca]
+    [rows, fObra, fStatus, busca]
   )
 
-  const totalSemana = rows.reduce((a, r) => a + r.total, 0)
-  const totalPorDia = days.map((_, i) =>
-    filtered.reduce((a, r) => a + (r.dias[i]?.valor ?? 0), 0)
+  const totalPago = rows
+    .filter((t) => t.status === "pago")
+    .reduce((a, t) => a + totalSemana(t), 0)
+  const totalPronto = rows
+    .filter((t) => t.status === "pronto" || t.status === "agendado")
+    .reduce((a, t) => a + totalSemana(t), 0)
+  const totalAberto = rows
+    .filter((t) => t.status === "aberto")
+    .reduce((a, t) => a + totalSemana(t), 0)
+  const totalSem = rows.reduce((a, t) => a + totalSemana(t), 0)
+  const totalPresencas = rows.reduce(
+    (a, t) => a + t.dias.reduce((b, d) => b + d, 0),
+    0
   )
-  const trabAtivos = rows.length
-  const totalPresencas = rows.reduce((a, r) => a + r.presencas, 0)
 
-  async function exportCSV() {
-    const header = [
-      "Trabalhador",
-      "Vínculo",
-      "Obra",
-      ...DAYS_LABEL.map((d, i) => `${d} ${format(days[i], "dd/MM")}`),
-      "Total",
-      "PIX",
-    ].join(",")
-    const lines = filtered.map((r) =>
-      [
-        r.trabalhador,
-        r.tipo_vinculo ?? "",
-        r.obra,
-        ...r.dias.map((d) => d?.valor.toFixed(2) ?? ""),
-        r.total.toFixed(2),
-        r.pix_chave ?? "",
-      ].join(",")
-    )
-    const csv = [header, ...lines].join("\n")
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement("a")
-    a.href = url
-    a.download = `folha_${format(weekStart, "yyyy-MM-dd")}.csv`
-    a.click()
-    URL.revokeObjectURL(url)
-    toast.success("CSV exportado")
+  const toggle = (id: string) => {
+    setSel((prev) => {
+      const s = new Set(prev)
+      if (s.has(id)) s.delete(id)
+      else s.add(id)
+      return s
+    })
   }
+
+  const totalSel = rows
+    .filter((t) => sel.has(t.id))
+    .reduce((a, t) => a + totalSemana(t), 0)
+
+  const totPorDia = days.map((_, di) =>
+    filtered
+      .filter((t) => t.vinculo === "diaria")
+      .reduce((a, t) => a + t.diasValor[di], 0)
+  )
 
   async function gerarLancamentos() {
     if (filtered.length === 0) {
-      toast.error("Nenhuma folha para gerar lançamentos")
+      toast.error("Nenhuma folha para gerar")
       return
     }
     setGerando(true)
     const supabase = createClient()
-
-    const { data: plano } = await supabase
-      .from("plano_conta")
-      .select("id_plano")
-      .eq("codigo", "2.2.1")
-      .maybeSingle()
-    const idPlano = (plano as { id_plano: number } | null)?.id_plano ?? null
-
     const obraIds = Array.from(new Set(filtered.map((r) => r.id_obra)))
     const { data: obras } = await supabase
       .from("obra")
@@ -280,119 +303,137 @@ export default function FolhaPage() {
     const ccMap = new Map(
       (obras ?? []).map((o) => [o.id_obra, o.id_centro_custo])
     )
-
     let count = 0
     for (const row of filtered) {
-      if (row.total <= 0) continue
+      const total = totalSemana(row)
+      if (total <= 0) continue
       const cc = ccMap.get(row.id_obra)
       if (!cc) continue
       const { error } = await supabase.from("lancamento").insert({
         id_obra: row.id_obra,
         id_centro_custo: cc,
         id_responsavel: 1,
-        valor: row.total,
+        valor: total,
         tipo: "realizado",
         entrada_saida: "saida",
         data_competencia: format(weekStart, "yyyy-MM-dd"),
-        historico: `Folha semanal — ${row.trabalhador}`,
-        id_plano_conta: idPlano,
+        historico: `Folha semanal — ${row.nome}`,
       })
       if (!error) count++
     }
     setGerando(false)
-    if (count === 0) {
-      toast.error("Nenhum lançamento criado (verifique centro de custo das obras)")
-    } else {
-      toast.success(`${count} lançamento${count === 1 ? "" : "s"} gerado${count === 1 ? "" : "s"}`)
-    }
+    toast.success(`${count} lançamentos gerados`)
   }
 
   return (
-    <div className="space-y-6">
-      <PageHeader
-        eyebrow={`Financeiro · Semana de ${format(weekStart, "dd/MM", { locale: ptBR })} a ${format(addDays(weekStart, 5), "dd/MM/yyyy", { locale: ptBR })}`}
-        title="Folha semanal"
-        subtitle={`${trabAtivos} trabalhador${trabAtivos === 1 ? "" : "es"} com presença · ${totalPresencas} presença${totalPresencas === 1 ? "" : "s"} registrada${totalPresencas === 1 ? "" : "s"} · fechamento dom ${format(addDays(weekStart, 6), "dd/MM", { locale: ptBR })}`}
-        actions={
-          <>
-            <Button variant="ghost" size="sm" onClick={exportCSV}>
-              <Download data-icon="inline-start" />
-              Exportar CSV
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
+    <>
+      <div className="page-head">
+        <div className="page-head-top">
+          <div className="page-head-title">
+            <div className="obra-id">
+              Financeiro · Semana de{" "}
+              {format(weekStart, "dd/MM", { locale: ptBR })} a{" "}
+              {format(addDays(weekStart, 5), "dd/MM/yyyy", { locale: ptBR })}
+            </div>
+            <h1>Folha semanal</h1>
+            <div className="subtitle">
+              {rows.length} trabalhadores · {totalPresencas} presenças
+              registradas
+            </div>
+          </div>
+          <div className="page-head-actions">
+            <button className="btn btn-ghost" type="button" disabled>
+              <Icon name="download" />
+              Exportar folha
+            </button>
+            <button
+              className="btn btn-secondary"
+              type="button"
               onClick={() => setWeekStart(addDays(weekStart, -7))}
-              aria-label="Semana anterior"
             >
-              <ChevronLeft />
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
+              <Icon name="chevronLeft" />
+              Semana anterior
+            </button>
+            <button
+              className="btn btn-secondary"
+              type="button"
               onClick={() => setWeekStart(addDays(weekStart, 7))}
-              aria-label="Próxima semana"
             >
-              <ChevronRight />
-            </Button>
-            <Button
-              size="sm"
+              Próxima semana
+              <Icon name="chevronRight" />
+            </button>
+            <button
+              className="btn btn-primary"
+              type="button"
               onClick={gerarLancamentos}
-              disabled={gerando || filtered.length === 0}
+              disabled={gerando}
             >
-              <Check data-icon="inline-start" />
-              {gerando ? "Gerando…" : "Gerar lançamentos"}
-            </Button>
-          </>
-        }
-      />
+              <Icon name="check" />
+              {gerando ? "Gerando…" : "Fechar e pagar"}
+            </button>
+          </div>
+        </div>
+      </div>
 
-      <KpiGrid cols={4}>
-        <KpiCard
-          tone="danger"
-          label="Total da semana"
-          value={formatBRL(totalSemana)}
-          sub={`${trabAtivos} trabalhador${trabAtivos === 1 ? "" : "es"} ativo${trabAtivos === 1 ? "" : "s"}`}
-          icon={<DollarSign />}
-        />
-        <KpiCard
-          tone="info"
-          label="Trabalhadores"
-          value={trabAtivos}
-          sub="Com presença na semana"
-          icon={<Users />}
-        />
-        <KpiCard
-          label="Diárias registradas"
-          value={totalPresencas}
-          sub={`Sob ${trabAtivos * 6} possíveis`}
-          icon={<Clock />}
-        />
-        <KpiCard
-          label="Custo médio dia"
-          value={formatBRL(Math.round(totalSemana / 6))}
-          sub="6 dias úteis (seg–sáb)"
-          icon={<Activity />}
-        />
-      </KpiGrid>
+      <div className="list-kpis">
+        <div className="list-kpi">
+          <div className="list-kpi-label">Total da semana</div>
+          <div className="list-kpi-value fin-neg">{fmtBRLk(totalSem)}</div>
+          <div className="list-kpi-sub">
+            <Icon name="dollar" />
+            {rows.length} trabalhadores ativos
+          </div>
+        </div>
+        <div className="list-kpi">
+          <div className="list-kpi-label">Já pago</div>
+          <div className="list-kpi-value fin-pos">{fmtBRLk(totalPago)}</div>
+          <div className="list-kpi-sub">
+            <Icon name="check" />
+            {rows.filter((t) => t.status === "pago").length} confirmados
+          </div>
+        </div>
+        <div className="list-kpi tone-warning">
+          <div className="list-kpi-head">
+            <div className="list-kpi-label">A pagar</div>
+            <div className="kpi-icon">
+              <Icon name="clock" />
+            </div>
+          </div>
+          <div className="list-kpi-value">
+            {fmtBRLk(totalPronto + totalAberto)}
+          </div>
+          <div className="list-kpi-sub">
+            <Icon name="clock" />
+            Pronto: {fmtBRLk(totalPronto)} · Aberto: {fmtBRLk(totalAberto)}
+          </div>
+        </div>
+        <div className="list-kpi">
+          <div className="list-kpi-label">Custo médio dia</div>
+          <div className="list-kpi-value">
+            {fmtBRLk(Math.round(totalSem / 6))}
+          </div>
+          <div className="list-kpi-sub">
+            <Icon name="activity" />6 dias úteis
+          </div>
+        </div>
+      </div>
 
-      <div className="overflow-hidden rounded-md border border-border bg-card">
-        <div className="flex flex-col gap-3 border-b border-border p-4 lg:flex-row lg:items-center lg:justify-between">
-          <div className="relative max-w-md flex-1">
-            <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              type="search"
+      <div className="card" style={{ marginTop: 18 }}>
+        <div className="card-head list-toolbar">
+          <div className="list-search">
+            <Icon name="search" />
+            <input
+              type="text"
               placeholder="Buscar trabalhador ou especialidade…"
               value={busca}
               onChange={(e) => setBusca(e.target.value)}
-              className="h-9 pl-9"
             />
           </div>
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="list-filters">
             <select
-              value={filtroObra}
-              onChange={(e) => setFiltroObra(e.target.value)}
-              className="h-[34px] max-w-[220px] rounded-md border border-border bg-muted px-3 text-[12.5px] text-foreground outline-none focus:border-primary"
+              className="seg-select"
+              value={fObra}
+              onChange={(e) => setFObra(e.target.value)}
             >
               <option value="todas">Todas as obras</option>
               {obras.map((o) => (
@@ -401,154 +442,246 @@ export default function FolhaPage() {
                 </option>
               ))}
             </select>
+            <div className="seg">
+              {(
+                [
+                  { id: "todos", label: "Todos" },
+                  { id: "aberto", label: "Em aberto" },
+                  { id: "pronto", label: "Prontos" },
+                  { id: "pago", label: "Pagos" },
+                ] as const
+              ).map((t) => (
+                <button
+                  key={t.id}
+                  type="button"
+                  className={"seg-btn" + (fStatus === t.id ? " active" : "")}
+                  onClick={() => setFStatus(t.id)}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="min-w-full">
-            <thead>
-              <tr className="border-b border-border bg-muted/60 text-[11px] uppercase tracking-wider text-muted-foreground">
-                <th className="sticky left-0 z-10 min-w-[260px] bg-muted/60 px-5 py-2.5 text-left font-semibold">
-                  Trabalhador
-                </th>
-                <th className="px-5 py-2.5 text-left font-semibold">
-                  Vínculo · Obra
-                </th>
-                {DAYS_LABEL.map((d, i) => (
-                  <th
-                    key={i}
-                    className="min-w-[80px] px-3 py-2.5 text-center font-semibold"
-                  >
-                    <div>{d}</div>
-                    <div className="text-[10px] font-normal text-muted-foreground/70 tabular-nums">
-                      {format(days[i], "dd/MM")}
-                    </div>
-                  </th>
-                ))}
-                <th className="px-5 py-2.5 text-right font-semibold">Total</th>
-              </tr>
-            </thead>
-            <tbody>
-              {isLoading ? (
-                <tr>
-                  <td
-                    colSpan={9}
-                    className="px-5 py-12 text-center text-sm text-muted-foreground"
-                  >
-                    Carregando folha…
-                  </td>
-                </tr>
-              ) : filtered.length === 0 ? (
-                <tr>
-                  <td
-                    colSpan={9}
-                    className="px-5 py-16 text-center text-sm text-muted-foreground"
-                  >
-                    {rows.length === 0
-                      ? "Nenhum registro de presença na semana selecionada."
-                      : "Nenhum trabalhador encontrado com esses filtros."}
-                  </td>
-                </tr>
-              ) : (
-                <>
-                  {filtered.map((r) => (
-                    <tr
-                      key={`${r.id_trabalhador}-${r.id_obra}`}
-                      className="border-b border-border last:border-b-0 hover:bg-muted/30"
-                    >
-                      <td className="sticky left-0 z-10 bg-card px-5 py-3">
-                        <div className="flex items-center gap-3">
-                          <Avatar variant="pf" name={r.trabalhador} size="sm" />
-                          <div className="min-w-0">
-                            <div className="truncate text-[13px] font-medium text-foreground">
-                              {r.trabalhador}
-                            </div>
-                            <div className="text-[11.5px] text-muted-foreground">
-                              {r.especialidade ?? "—"}
-                            </div>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-5 py-3">
-                        <CategoryChip tone={vincTone(r.tipo_vinculo)}>
-                          {VINC_LABEL[r.tipo_vinculo ?? ""] ?? r.tipo_vinculo ?? "—"}
-                        </CategoryChip>
-                        <div className="mt-1 max-w-[180px] truncate text-[11px] text-muted-foreground">
-                          {r.obra}
-                        </div>
-                      </td>
-                      {r.dias.map((d, i) => (
-                        <td
-                          key={i}
-                          className={cn(
-                            "px-3 py-3 text-center align-middle",
-                            d
-                              ? d.tipo === "integral"
-                                ? "bg-[var(--success-soft)]/40"
-                                : d.tipo === "meia"
-                                  ? "bg-[var(--warning-soft)]/40"
-                                  : "bg-[var(--danger-soft)]/30"
-                              : ""
-                          )}
-                        >
-                          {d ? (
-                            <div className="flex flex-col items-center gap-0.5">
-                              <span className="mono text-[11px] font-medium tabular-nums text-foreground">
-                                {formatBRL(d.valor)}
-                              </span>
-                              {d.tipo !== "integral" ? (
-                                <span className="text-[9.5px] uppercase tracking-wider text-muted-foreground">
-                                  {d.tipo === "meia"
-                                    ? "½"
-                                    : d.tipo === "falta_justificada"
-                                      ? "j"
-                                      : "f"}
-                                </span>
-                              ) : null}
-                            </div>
-                          ) : (
-                            <span className="text-muted-foreground/50">·</span>
-                          )}
-                        </td>
-                      ))}
-                      <td className="px-5 py-3 text-right">
-                        <div className="mono text-[14px] font-semibold tabular-nums text-[var(--danger-ink)]">
-                          {formatBRL(r.total)}
-                        </div>
-                        <div className="text-[10.5px] text-muted-foreground tabular-nums">
-                          {r.presencas}/6 dias
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+        {sel.size > 0 ? (
+          <div className="bulk-bar">
+            <div>
+              <strong>{sel.size}</strong> selecionado{sel.size > 1 ? "s" : ""} ·{" "}
+              <span
+                className="mono"
+                style={{ fontWeight: 500, color: "var(--ink)" }}
+              >
+                {fmtBRL(totalSel)}
+              </span>
+            </div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button
+                type="button"
+                className="btn btn-ghost"
+                onClick={() => setSel(new Set())}
+              >
+                Cancelar
+              </button>
+              <button className="btn btn-secondary" type="button" disabled>
+                <Icon name="download" />
+                Remessa PIX
+              </button>
+              <button className="btn btn-primary" type="button" disabled>
+                <Icon name="check" />
+                Marcar como pagos
+              </button>
+            </div>
+          </div>
+        ) : null}
 
-                  {/* Total row */}
-                  <tr className="border-t-2 border-border bg-muted/40 font-semibold">
-                    <td className="sticky left-0 z-10 bg-muted/40 px-5 py-3 text-[13px] text-foreground">
-                      Total do dia
-                    </td>
-                    <td className="px-5 py-3 text-[11px] font-normal text-muted-foreground">
-                      Soma de presenças
-                    </td>
-                    {totalPorDia.map((v, i) => (
-                      <td key={i} className="px-3 py-3 text-center">
-                        <span className="mono text-[12.5px] font-semibold tabular-nums text-[var(--danger-ink)]">
-                          {formatBRL(v)}
-                        </span>
-                      </td>
-                    ))}
-                    <td className="px-5 py-3 text-right">
-                      <div className="mono text-[15px] font-bold tabular-nums text-[var(--danger-ink)]">
-                        {formatBRL(filtered.reduce((a, r) => a + r.total, 0))}
+        <div className="folha-table">
+          <div className="folha-thead">
+            <div className="folha-sel"></div>
+            <div className="folha-nome">Trabalhador</div>
+            <div className="folha-vinc">Vínculo · Obra</div>
+            {DIAS.map((d, i) => (
+              <div key={i} className="folha-day">
+                {d}
+              </div>
+            ))}
+            <div className="folha-total">Total</div>
+            <div className="folha-status">Status</div>
+          </div>
+          {isLoading ? (
+            <div
+              style={{
+                padding: "60px 24px",
+                textAlign: "center",
+                color: "var(--ink-muted)",
+                fontSize: 13.5,
+              }}
+            >
+              Carregando…
+            </div>
+          ) : filtered.length === 0 ? (
+            <div
+              style={{
+                padding: "60px 24px",
+                textAlign: "center",
+                color: "var(--ink-muted)",
+                fontSize: 13.5,
+              }}
+            >
+              Nenhum registro de presença.
+            </div>
+          ) : (
+            <>
+              {filtered.map((t) => {
+                const tot = totalSemana(t)
+                const presencas = t.dias.reduce((a, d) => a + d, 0)
+                return (
+                  <div
+                    className={"folha-row" + (sel.has(t.id) ? " row-selected" : "")}
+                    key={t.id}
+                  >
+                    <div className="folha-sel">
+                      {t.status !== "pago" ? (
+                        <input
+                          type="checkbox"
+                          checked={sel.has(t.id)}
+                          onChange={() => toggle(t.id)}
+                          className="list-check"
+                        />
+                      ) : null}
+                    </div>
+                    <div className="folha-nome-cell">
+                      <span className="avatar-sm">{t.init}</span>
+                      <div>
+                        <div className="nm">{t.nome}</div>
+                        <div className="sub">{t.esp}</div>
                       </div>
-                    </td>
-                  </tr>
-                </>
-              )}
-            </tbody>
-          </table>
+                    </div>
+                    <div>
+                      <VincBadge v={t.vinculo} />
+                      <div className="sub" style={{ marginTop: 4 }}>
+                        {t.vinculo === "diaria"
+                          ? `${fmtBRL(t.valor)}/dia`
+                          : t.vinculo === "empreitada"
+                            ? "Fechamento"
+                            : `${fmtBRL(t.valor)}/mês`}
+                      </div>
+                      <div className="sub" style={{ fontSize: 11 }}>
+                        {t.obra}
+                      </div>
+                    </div>
+                    {t.vinculo === "diaria" ? (
+                      DIAS.map((_, di) => (
+                        <div
+                          key={di}
+                          className={
+                            "folha-day-cell" +
+                            (t.dias[di] ? " pres" : " aus")
+                          }
+                        >
+                          {t.dias[di] ? (
+                            <span
+                              className="mono"
+                              style={{
+                                fontSize: 11,
+                                fontVariantNumeric: "tabular-nums",
+                              }}
+                            >
+                              {fmtBRLk(t.diasValor[di])}
+                            </span>
+                          ) : (
+                            <span
+                              style={{
+                                color: "var(--ink-muted)",
+                                fontSize: 16,
+                              }}
+                            >
+                              ·
+                            </span>
+                          )}
+                        </div>
+                      ))
+                    ) : (
+                      <div
+                        className="folha-day-cell spans-6"
+                        style={{
+                          gridColumn: "span 6",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          color: "var(--ink-muted)",
+                          fontSize: 12,
+                          fontStyle: "italic",
+                        }}
+                      >
+                        {t.obs ?? "Não se aplica"}
+                      </div>
+                    )}
+                    <div className="folha-total-cell">
+                      <div
+                        className="mono fin-neg"
+                        style={{
+                          fontSize: 14,
+                          fontWeight: 500,
+                          fontVariantNumeric: "tabular-nums",
+                        }}
+                      >
+                        {fmtBRL(tot)}
+                      </div>
+                      {t.vinculo === "diaria" ? (
+                        <div className="sub" style={{ fontSize: 11 }}>
+                          {presencas}/6 dias
+                        </div>
+                      ) : null}
+                    </div>
+                    <div className="folha-status-cell">
+                      <StatusBadge s={t.status} />
+                    </div>
+                  </div>
+                )
+              })}
+
+              <div className="folha-row folha-totals">
+                <div className="folha-sel"></div>
+                <div
+                  className="folha-nome-cell"
+                  style={{ fontWeight: 600, color: "var(--ink)" }}
+                >
+                  Total do dia
+                </div>
+                <div className="sub">Somente diárias</div>
+                {totPorDia.map((v, i) => (
+                  <div key={i} className="folha-day-cell">
+                    <span
+                      className="mono fin-neg"
+                      style={{
+                        fontSize: 12,
+                        fontWeight: 500,
+                        fontVariantNumeric: "tabular-nums",
+                      }}
+                    >
+                      {fmtBRLk(v)}
+                    </span>
+                  </div>
+                ))}
+                <div className="folha-total-cell">
+                  <div
+                    className="mono fin-neg"
+                    style={{
+                      fontSize: 15,
+                      fontWeight: 600,
+                      fontVariantNumeric: "tabular-nums",
+                    }}
+                  >
+                    {fmtBRL(totalSem)}
+                  </div>
+                </div>
+                <div></div>
+              </div>
+            </>
+          )}
         </div>
       </div>
-    </div>
+    </>
   )
 }
