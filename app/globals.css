@@ -2,6 +2,11 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 
+/* Design system port (literal do Claude Design handoff) */
+@import "./styles/styles.css";
+@import "./styles/listagem.css";
+@import "./styles/admin.css";
+
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {

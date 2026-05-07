@@ -1,0 +1,825 @@
+/* Listagens — compartilhado entre Clientes / Fornecedores / Trabalhadores / Responsáveis */
+
+/* Valores financeiros — verde para positivo, vermelho para zero/negativo */
+.fin-pos { color: var(--success) !important; }
+.fin-neg { color: var(--danger) !important; }
+
+
+/* KPIs compactos (não chamam atenção — são meta da página) */
+.list-kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+  margin-top: 4px;
+}
+/* 5 cards SEMPRE em uma linha (até quebrar em telas bem pequenas) */
+.list-kpis.cols-5 {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10px;
+}
+.list-kpis.cols-5 .list-kpi { padding: 12px 14px 10px; min-width: 0; }
+.list-kpis.cols-5 .list-kpi.tone-danger,
+.list-kpis.cols-5 .list-kpi.tone-warning,
+.list-kpis.cols-5 .list-kpi.tone-success,
+.list-kpis.cols-5 .list-kpi.tone-info { padding-left: 16px; }
+.list-kpis.cols-5 .list-kpi-label {
+  font-size: 10.5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.list-kpis.cols-5 .list-kpi-value { font-size: 22px; }
+.list-kpis.cols-5 .list-kpi-sub {
+  font-size: 11.5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+@media (max-width: 760px) {
+  .list-kpis.cols-5 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+.list-kpi {
+  background: var(--white);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 14px 16px 12px;
+  position: relative;
+  overflow: hidden;
+}
+/* Barra tonal lateral (aparece só com variante tone-*) */
+.list-kpi.tone-danger,
+.list-kpi.tone-warning,
+.list-kpi.tone-success,
+.list-kpi.tone-info {
+  padding-left: 18px;
+}
+.list-kpi.tone-danger::before,
+.list-kpi.tone-warning::before,
+.list-kpi.tone-success::before,
+.list-kpi.tone-info::before {
+  content: '';
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 3px;
+}
+.list-kpi.tone-danger::before  { background: var(--danger); }
+.list-kpi.tone-warning::before { background: var(--warning); }
+.list-kpi.tone-success::before { background: var(--success); }
+.list-kpi.tone-info::before    { background: var(--info); }
+
+/* Header do KPI com label à esquerda e ícone à direita */
+.list-kpi-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+}
+.list-kpi .kpi-icon {
+  width: 28px; height: 28px;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.list-kpi .kpi-icon svg { width: 14px; height: 14px; stroke-width: 2; }
+.list-kpi.tone-danger  .kpi-icon { background: var(--danger-soft);  color: var(--danger); }
+.list-kpi.tone-warning .kpi-icon { background: var(--warning-soft); color: var(--warning); }
+.list-kpi.tone-success .kpi-icon { background: var(--success-soft); color: var(--success); }
+.list-kpi.tone-info    .kpi-icon { background: var(--info-soft);    color: var(--info); }
+
+.list-kpi-label {
+  font-size: 11.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ink-muted);
+  font-weight: 500;
+}
+.list-kpi-value {
+  font-size: 24px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+  margin-top: 6px;
+  font-variant-numeric: tabular-nums;
+}
+.list-kpi-sub {
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--ink-muted);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.list-kpi-sub svg {
+  width: 13px; height: 13px;
+  stroke-width: 1.8;
+  color: var(--ink-soft);
+}
+
+/* Toolbar dentro do card-head */
+.list-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  justify-content: space-between;
+  padding: 12px 16px;
+}
+.list-search {
+  flex: 1;
+  max-width: 420px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 34px;
+  padding: 0 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: var(--white);
+}
+.list-search:focus-within {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--primary) 18%, transparent);
+}
+.list-search svg {
+  width: 15px; height: 15px;
+  stroke-width: 1.8;
+  color: var(--ink-soft);
+  flex-shrink: 0;
+}
+.list-search input {
+  flex: 1;
+  border: none;
+  outline: none;
+  font: inherit;
+  font-size: 13.5px;
+  color: var(--ink);
+  background: transparent;
+}
+.list-search input::placeholder { color: var(--ink-muted); }
+
+.list-filters {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* Segmented */
+.seg {
+  display: inline-flex;
+  background: var(--surface-muted);
+  border-radius: 8px;
+  padding: 3px;
+  border: 1px solid var(--line);
+}
+.seg-btn {
+  background: transparent;
+  border: none;
+  padding: 0 12px;
+  height: 26px;
+  font: inherit;
+  font-size: 12.5px;
+  color: var(--ink-muted);
+  border-radius: 5px;
+  cursor: pointer;
+  font-weight: 500;
+  transition: background 0.12s, color 0.12s;
+}
+.seg-btn:hover { color: var(--ink); }
+.seg-btn.active {
+  background: var(--white);
+  color: var(--ink);
+  box-shadow: 0 1px 2px rgba(17, 24, 39, 0.06);
+}
+
+/* Tabela */
+.list-table {
+  display: block;
+}
+.list-thead,
+.list-row2 {
+  display: grid;
+  grid-template-columns:
+    minmax(260px, 2.1fr)  /* nome */
+    minmax(160px, 1fr)    /* doc */
+    minmax(200px, 1.2fr)  /* contato */
+    minmax(200px, 1.3fr)  /* col4 */
+    minmax(140px, 0.9fr)  /* col5 numérico */
+    minmax(110px, 0.7fr)  /* status */
+    40px;                  /* actions */
+  gap: 16px;
+  align-items: center;
+  padding: 12px 20px;
+}
+/* Trabalhadores: 7 colunas com largura ajustada para presença */
+.list-table-trab .list-thead,
+.list-table-trab .list-row2 {
+  grid-template-columns:
+    minmax(240px, 1.8fr)  /* trabalhador */
+    minmax(180px, 1.1fr)  /* cpf + pix */
+    minmax(160px, 1fr)    /* especialidade */
+    minmax(140px, 0.9fr)  /* vínculo + valor */
+    minmax(160px, 1fr)    /* presença semana */
+    minmax(100px, 0.6fr)  /* status */
+    40px;                  /* actions */
+}
+
+/* Select em linha com os segmented controls */
+.seg-select {
+  height: 34px;
+  padding: 0 28px 0 12px;
+  font: inherit;
+  font-size: 12.5px;
+  color: var(--ink);
+  background: var(--surface-muted);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23717d8a' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  transition: border-color 0.12s, background-color 0.12s;
+}
+.seg-select:hover { border-color: var(--line-strong); }
+.seg-select:focus {
+  outline: none;
+  border-color: var(--primary);
+  background-color: var(--white);
+}
+/* When .seg-select is a wrapper <div> containing icon + select, present like a select */
+div.seg-select {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  background-image: none;
+}
+div.seg-select > svg { width: 14px; height: 14px; stroke-width: 1.8; color: var(--ink-muted); }
+div.seg-select > select {
+  border: none; outline: none; background: transparent;
+  font: inherit; font-size: 12.5px; color: var(--ink);
+  padding-right: 18px;
+  background-image: url("data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23717d8a' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0 center;
+  appearance: none; -webkit-appearance: none;
+  cursor: pointer;
+}
+.list-thead {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--ink-muted);
+  font-weight: 500;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface-muted);
+  padding: 10px 20px;
+}
+.list-thead .num { text-align: right; }
+
+.list-row2 {
+  border-bottom: 1px solid var(--line);
+  transition: background 0.1s;
+}
+.list-row2:last-child { border-bottom: none; }
+.list-row2:hover { background: var(--surface-muted); }
+
+.list-cell-name {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.list-name-block {
+  min-width: 0;
+}
+.list-name-block .nm {
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.list-name-block .nm a {
+  color: inherit;
+  cursor: pointer;
+}
+.list-name-block .nm a:hover { color: var(--primary); }
+.list-name-block .sub,
+.list-cell-obras .sub,
+.list-cell-num .sub,
+.list-cell-contact .sub {
+  font-size: 11.5px;
+  color: var(--ink-muted);
+  margin-top: 2px;
+}
+
+/* PJ variant do avatar — círculo, não quadrado, mas com radius menor */
+.avatar-sm.avatar-pj {
+  border-radius: 6px;
+  background: color-mix(in oklab, var(--primary) 15%, var(--surface-muted));
+  color: var(--primary);
+}
+
+.list-cell-doc .tipo-tag {
+  display: inline-block;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--surface-muted);
+  color: var(--ink-muted);
+  margin-bottom: 3px;
+}
+.list-cell-doc .mono {
+  font-size: 12.5px;
+  color: var(--ink);
+}
+
+.list-cell-contact .em {
+  font-size: 13px;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.list-cell-obras .ob-main {
+  font-size: 13px;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.list-cell-num {
+  text-align: right;
+}
+.list-cell-num .val {
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+.list-cell-num .sub { text-align: right; }
+
+.list-cell-status {
+  display: flex;
+  justify-content: flex-start;
+}
+
+.list-cell-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+/* Footer */
+.list-foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 20px;
+  border-top: 1px solid var(--line);
+  background: var(--surface-muted);
+}
+.list-foot .sub {
+  font-size: 12px;
+  color: var(--ink-muted);
+}
+.list-pag {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12.5px;
+  color: var(--ink-muted);
+}
+
+/* responsive-ish: esconde colunas menos críticas em tela menor */
+@media (max-width: 1280px) {
+  .list-thead, .list-row2 {
+    grid-template-columns:
+      minmax(220px, 2fr)
+      minmax(140px, 1fr)
+      minmax(200px, 1.3fr)
+      minmax(140px, 0.9fr)
+      minmax(100px, 0.6fr)
+      40px;
+  }
+  .list-thead > :nth-child(4),
+  .list-row2 > .list-cell-obras { display: none; }
+}
+@media (max-width: 720px) {
+  .list-kpis { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 460px) {
+  .list-kpis { grid-template-columns: 1fr; }
+}
+
+/* ============================================================ */
+/* Botões pequenos + utilitários                                */
+/* ============================================================ */
+
+.btn.btn-sm {
+  height: 28px;
+  padding: 0 10px;
+  font-size: 12px;
+  border-radius: 6px;
+}
+
+.badge.badge-info {
+  background: var(--info-soft);
+  color: var(--info-ink);
+  border-color: transparent;
+}
+
+.list-check {
+  width: 15px;
+  height: 15px;
+  accent-color: var(--primary);
+  cursor: pointer;
+}
+
+/* Bulk action bar — aparece acima da tabela quando há seleção */
+.bulk-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 20px;
+  background: color-mix(in oklab, var(--primary) 9%, var(--white));
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  font-size: 13px;
+  color: var(--ink);
+}
+.bulk-bar strong {
+  color: var(--primary);
+  font-weight: 600;
+}
+
+/* Linhas destacadas por estado */
+.list-row2.row-danger {
+  background: color-mix(in oklab, var(--danger) 3%, transparent);
+}
+.list-row2.row-danger:hover {
+  background: color-mix(in oklab, var(--danger) 6%, var(--surface-muted));
+}
+.list-row2.row-selected {
+  background: color-mix(in oklab, var(--primary) 6%, var(--surface-muted)) !important;
+}
+
+/* ============================================================ */
+/* LANÇAMENTOS (T14)                                            */
+/* ============================================================ */
+
+.list-table-lanc .list-thead,
+.list-table-lanc .list-row2 {
+  grid-template-columns:
+    minmax(260px, 2fr)    /* descrição */
+    minmax(180px, 1.1fr)  /* categoria */
+    minmax(200px, 1.3fr)  /* obra · contraparte */
+    minmax(120px, 0.8fr)  /* forma · venc */
+    minmax(140px, 0.9fr)  /* valor */
+    minmax(110px, 0.7fr)  /* status */
+    40px;                  /* actions */
+}
+
+/* Separador de data (grouping) */
+.lanc-date-sep {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 20px;
+  background: var(--surface-muted);
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.lanc-date-sep .sub {
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--ink-muted);
+}
+
+/* Ícone de in/out no row (avatar-like) */
+.lanc-icon {
+  width: 32px; height: 32px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.lanc-icon svg { width: 14px; height: 14px; stroke-width: 2.2; }
+.lanc-icon.in  { background: var(--success-soft); color: var(--success); }
+.lanc-icon.out { background: var(--danger-soft);  color: var(--danger); }
+
+/* ============================================================ */
+/* CONTAS A PAGAR (T15)                                         */
+/* ============================================================ */
+
+.list-table-cp .list-thead,
+.list-table-cp .list-row2 {
+  grid-template-columns:
+    28px                  /* checkbox */
+    minmax(170px, 1fr)    /* vencimento */
+    minmax(220px, 1.6fr)  /* descrição */
+    minmax(180px, 1.1fr)  /* categoria · obra */
+    minmax(200px, 1.2fr)  /* fornecedor · nf */
+    minmax(130px, 0.8fr)  /* valor */
+    minmax(100px, 0.7fr); /* ações */
+  gap: 12px;
+}
+
+/* Pill de vencimento */
+.venc-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  font-size: 12px;
+  border: 1px solid transparent;
+}
+.venc-pill svg { width: 14px; height: 14px; stroke-width: 2; flex-shrink: 0; }
+.venc-pill .primary {
+  font-weight: 500;
+  font-size: 12.5px;
+  color: inherit;
+  line-height: 1.2;
+}
+.venc-pill .sub {
+  font-size: 11px;
+  color: inherit;
+  opacity: 0.75;
+  margin-top: 1px;
+}
+.venc-pill.atrasado {
+  background: var(--danger-soft);
+  color: var(--danger-ink);
+  border-color: color-mix(in oklab, var(--danger) 20%, transparent);
+}
+.venc-pill.hoje {
+  background: var(--warning-soft);
+  color: var(--warning-ink);
+  border-color: color-mix(in oklab, var(--warning) 20%, transparent);
+}
+.venc-pill.proximo {
+  background: var(--info-soft);
+  color: var(--info-ink);
+}
+.venc-pill.futuro {
+  background: var(--surface-muted);
+  color: var(--ink-muted);
+  border-color: var(--line);
+}
+
+/* ============================================================ */
+/* PLANO DE CONTAS (T16)                                        */
+/* ============================================================ */
+
+.list-table-plano .list-thead,
+.list-table-plano .list-row2 {
+  grid-template-columns:
+    minmax(340px, 2fr)    /* código + nome (com indent) */
+    minmax(140px, 0.8fr)  /* lançamentos */
+    minmax(130px, 0.9fr)  /* realizado */
+    minmax(120px, 0.8fr)  /* orçado */
+    minmax(200px, 1.2fr)  /* barra % */
+    40px;
+}
+
+.plano-row {
+  padding: 10px 20px;
+}
+.plano-row.plano-lvl-1 {
+  padding: 14px 20px;
+  background: var(--surface-muted);
+  border-top: 2px solid var(--line-strong);
+  font-weight: 600;
+}
+.plano-row.plano-lvl-1:first-of-type { border-top: none; }
+.plano-row.plano-root-in .plano-code { color: var(--success); }
+.plano-row.plano-root-out .plano-code { color: var(--danger); }
+
+.plano-row.plano-lvl-2 {
+  background: color-mix(in oklab, var(--surface-muted) 40%, var(--white));
+}
+
+.tree-toggle {
+  width: 20px;
+  height: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  color: var(--ink-muted);
+  cursor: pointer;
+  padding: 0;
+}
+.tree-toggle:hover { background: var(--surface-muted); color: var(--ink); }
+.tree-toggle svg { width: 14px; height: 14px; stroke-width: 2.2; }
+
+.plano-code {
+  font-size: 11.5px;
+  color: var(--ink-muted);
+  letter-spacing: 0.02em;
+  font-weight: 500;
+  min-width: 40px;
+  flex-shrink: 0;
+}
+.plano-nome {
+  font-size: 13px;
+  color: var(--ink);
+}
+.plano-nome.lvl-1 {
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.plano-nome.lvl-2 {
+  font-weight: 600;
+  font-size: 13.5px;
+}
+.plano-nome.lvl-3 {
+  font-weight: 400;
+  color: var(--ink-soft);
+}
+
+/* Barra de percentual */
+.pct-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.pct-bar-track {
+  flex: 1;
+  position: relative;
+  height: 6px;
+  background: var(--surface-muted);
+  border-radius: 3px;
+  overflow: visible;
+}
+.pct-bar-fill {
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  border-radius: 3px;
+  transition: width 0.3s;
+}
+.pct-bar-over {
+  position: absolute;
+  top: -2px;
+  width: 2px;
+  height: 10px;
+  background: var(--danger);
+}
+.pct-bar-label {
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+  min-width: 42px;
+  text-align: right;
+  font-weight: 500;
+}
+
+/* ============================================================ */
+/* FOLHA SEMANAL (T17)                                          */
+/* ============================================================ */
+
+.folha-table {
+  display: block;
+  overflow-x: auto;
+}
+.folha-thead,
+.folha-row {
+  display: grid;
+  grid-template-columns:
+    28px                         /* checkbox */
+    minmax(180px, 1.3fr)         /* nome */
+    minmax(140px, 0.9fr)         /* vinculo + obra */
+    repeat(6, 48px)              /* 6 dias — quadrados fixos */
+    minmax(110px, 0.8fr)         /* total */
+    minmax(105px, 0.65fr);       /* status */
+  gap: 8px;
+  align-items: center;
+  padding: 10px 20px;
+  border-bottom: 1px solid var(--line);
+}
+.folha-thead {
+  background: var(--surface-muted);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ink-muted);
+  font-weight: 500;
+  padding: 10px 20px;
+}
+.folha-row:hover { background: var(--surface-muted); }
+.folha-row.row-selected {
+  background: color-mix(in oklab, var(--primary) 6%, var(--surface-muted)) !important;
+}
+.folha-row:last-child { border-bottom: none; }
+
+.folha-sel { display: flex; align-items: center; }
+
+.folha-nome-cell {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.folha-nome-cell .nm {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.folha-nome-cell .sub {
+  font-size: 11.5px;
+  color: var(--ink-muted);
+  margin-top: 1px;
+}
+
+.folha-day {
+  text-align: center;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.folha-day-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 6px;
+  font-variant-numeric: tabular-nums;
+  margin: 0 auto;
+  box-sizing: border-box;
+}
+.folha-day-cell.pres {
+  background: var(--success-soft);
+  color: var(--success-ink);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+}
+.folha-day-cell.aus {
+  background: transparent;
+  border: 1px dashed color-mix(in oklab, var(--line) 85%, transparent);
+  color: var(--ink-muted-2);
+}
+.folha-day-cell.aus {
+  background: transparent;
+}
+
+.folha-total, .folha-status {
+  font-size: 11px;
+  text-align: right;
+}
+.folha-total { text-align: right; }
+.folha-total-cell {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.folha-total-cell .sub {
+  font-size: 11px;
+  color: var(--ink-muted);
+  margin-top: 2px;
+}
+.folha-status-cell {
+  display: flex;
+  justify-content: flex-end;
+}
+
+/* Linha de totais do rodapé */
+.folha-row.folha-totals {
+  background: color-mix(in oklab, var(--primary) 7%, var(--surface-muted));
+  border-top: 2px solid var(--line-strong);
+  border-bottom: none;
+  font-weight: 500;
+  padding: 12px 20px;
+}
+.folha-row.folha-totals .folha-day-cell {
+  background: transparent;
+  border: none;
+  width: auto;
+  height: auto;
+  white-space: nowrap;
+}
+.folha-row.folha-totals:hover {
+  background: color-mix(in oklab, var(--primary) 7%, var(--surface-muted));
+}
