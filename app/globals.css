@@ -6,6 +6,14 @@
 @import "./styles/styles.css";
 @import "./styles/listagem.css";
 @import "./styles/admin.css";
+@import "./styles/dashboard.css";
+@import "./styles/clientes.css";
+@import "./styles/detalhe.css";
+@import "./styles/diario.css";
+@import "./styles/escala.css";
+@import "./styles/obras.css";
+@import "./styles/check-tarefas.css";
+@import "./styles/df-dashboard.css";
 
 @custom-variant dark (&:is(.dark *));
 
