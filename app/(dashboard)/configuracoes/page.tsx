@@ -1,196 +1,252 @@
 "use client"
 
+// Port literal de granum-design/configuracoes-app.jsx + Configuracoes.html
+// Estrutura settings-nav vertical preservada
+
 import { useCallback, useEffect, useState } from "react"
-import {
-  FolderTree,
-  Layers,
-  Pencil,
-  Plus,
-  Settings2,
-  ShieldCheck,
-} from "lucide-react"
 import { toast } from "sonner"
 
-import { CategoryChip } from "@/components/shared/category-chip"
-import { PageHeader } from "@/components/shared/page-header"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
+import { Icon } from "@/components/granum/icon"
 import { createClient } from "@/lib/supabase/client"
-import { cn } from "@/lib/utils"
 
-type SectionKey = "perfis" | "etapas" | "grupos" | "centros"
+type Tab =
+  | "empresa"
+  | "catalogos"
+  | "categorias"
+  | "notificacoes"
+  | "plano"
 
-const SECTIONS: {
-  key: SectionKey
-  title: string
-  description: string
-  icon: React.ComponentType<{ className?: string }>
+const TABS: { id: Tab; label: string; icon: string }[] = [
+  { id: "empresa", label: "Empresa", icon: "building" },
+  { id: "catalogos", label: "Catálogos do sistema", icon: "layers" },
+  { id: "categorias", label: "Categorias e tags", icon: "folder" },
+  { id: "notificacoes", label: "Notificações", icon: "bell" },
+  { id: "plano", label: "Plano e cobrança", icon: "dollar" },
+]
+
+const CATALOG_DEFS: {
+  key: string
   table: string
   fields: string[]
   idField: string
   labelField: string
+  title: string
+  description: string
 }[] = [
   {
     key: "perfis",
-    title: "Perfis de acesso",
-    description:
-      "Define os 5 papéis do sistema (diretor, engenheiro, financeiro, arquiteta, mestre).",
-    icon: ShieldCheck,
     table: "perfil",
     fields: ["nome", "descricao"],
     idField: "id_perfil",
     labelField: "nome",
+    title: "Perfis de acesso",
+    description: "5 papéis do sistema (diretor, engenheiro, etc).",
   },
   {
     key: "etapas",
-    title: "Etapas padrão",
-    description:
-      "Modelos de etapas usados ao criar novas obras (fundação, estrutura, alvenaria, etc).",
-    icon: Layers,
     table: "etapa",
     fields: ["codigo", "nome", "descricao", "ordem"],
     idField: "id_etapa",
     labelField: "nome",
+    title: "Etapas padrão",
+    description: "Modelos de etapas usados ao criar obras.",
   },
   {
     key: "grupos",
-    title: "Grupos de movimento",
-    description:
-      "Agrupamentos de lançamentos para relatórios financeiros (mão de obra, material, etc).",
-    icon: FolderTree,
     table: "grupo_movimento",
     fields: ["nome", "descricao"],
     idField: "id_grupo",
     labelField: "nome",
+    title: "Grupos de movimento",
+    description: "Agrupamentos de lançamentos para relatórios.",
   },
   {
     key: "centros",
-    title: "Centros de custo",
-    description:
-      "Centros de custo para alocação de despesas. Toda obra é vinculada a um.",
-    icon: Settings2,
     table: "centro_custo",
     fields: ["codigo", "nome", "descricao"],
     idField: "id_centro_custo",
     labelField: "nome",
+    title: "Centros de custo",
+    description: "Centros usados na alocação de despesas.",
   },
 ]
 
-export default function ConfiguracoesPage() {
-  const [active, setActive] = useState<SectionKey>("perfis")
-  const section = SECTIONS.find((s) => s.key === active)!
-
+function Field({
+  label,
+  value,
+  hint,
+  type = "text",
+  cols = 1,
+  readOnly = true,
+}: {
+  label: string
+  value: string
+  hint?: string
+  type?: string
+  cols?: 1 | 2
+  readOnly?: boolean
+}) {
   return (
-    <div className="space-y-6">
-      <PageHeader
-        eyebrow="Sistema · Administração"
-        title="Configurações"
-        subtitle="Catálogos do sistema, perfis de acesso e estrutura financeira"
-      />
+    <div className="field" style={{ gridColumn: `span ${cols}` }}>
+      <label className="field-label">{label}</label>
+      {type === "textarea" ? (
+        <textarea
+          className="input"
+          defaultValue={value}
+          rows={3}
+          readOnly={readOnly}
+        />
+      ) : (
+        <input
+          className="input"
+          type={type}
+          defaultValue={value}
+          readOnly={readOnly}
+        />
+      )}
+      {hint ? <div className="field-hint">{hint}</div> : null}
+    </div>
+  )
+}
 
-      <div className="grid gap-6 lg:grid-cols-[260px_1fr]">
-        <nav className="space-y-1">
-          {SECTIONS.map((s) => {
-            const isActive = s.key === active
-            const Icon = s.icon
-            return (
-              <button
-                key={s.key}
-                onClick={() => setActive(s.key)}
-                className={cn(
-                  "group flex w-full items-start gap-3 rounded-md border border-transparent px-3 py-2.5 text-left transition-colors",
-                  isActive
-                    ? "border-border bg-card shadow-[0_1px_2px_rgba(15,23,42,0.04)]"
-                    : "hover:bg-muted/40"
-                )}
+function TabEmpresa() {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+      <div className="card">
+        <div className="card-head">
+          <div>
+            <div
+              style={{
+                fontSize: 11,
+                color: "var(--ink-muted)",
+                textTransform: "uppercase",
+                letterSpacing: "0.04em",
+              }}
+            >
+              Identidade
+            </div>
+            <div style={{ fontSize: 15, fontWeight: 600 }}>
+              Dados da empresa
+            </div>
+          </div>
+        </div>
+        <div className="card-body">
+          <div
+            style={{
+              display: "flex",
+              gap: 20,
+              marginBottom: 20,
+              paddingBottom: 20,
+              borderBottom: "1px solid var(--line)",
+            }}
+          >
+            <div
+              style={{
+                width: 80,
+                height: 80,
+                borderRadius: 12,
+                background: "var(--surface-muted)",
+                border: "1px dashed var(--line-strong)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                color: "var(--ink-muted)",
+                fontSize: 11,
+              }}
+            >
+              logo
+            </div>
+            <div style={{ flex: 1 }}>
+              <div
+                style={{
+                  fontSize: 14,
+                  fontWeight: 600,
+                  color: "var(--ink)",
+                }}
               >
-                <span
-                  className={cn(
-                    "mt-0.5 inline-flex size-7 shrink-0 items-center justify-center rounded-md",
-                    isActive
-                      ? "bg-accent text-primary"
-                      : "bg-muted text-muted-foreground"
-                  )}
-                >
-                  <Icon className="size-4" />
-                </span>
-                <span className="min-w-0">
-                  <span
-                    className={cn(
-                      "block text-[13px] font-medium",
-                      isActive ? "text-foreground" : "text-muted-foreground"
-                    )}
-                  >
-                    {s.title}
-                  </span>
-                  <span className="block truncate text-[11.5px] text-muted-foreground">
-                    {s.description}
-                  </span>
-                </span>
-              </button>
-            )
-          })}
-        </nav>
-
-        <div className="space-y-4">
-          <Card>
-            <CardContent className="space-y-1 py-5">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <h2 className="text-[16px] font-semibold text-foreground">
-                    {section.title}
-                  </h2>
-                  <p className="text-[12.5px] text-muted-foreground">
-                    {section.description}
-                  </p>
-                </div>
+                Logo da empresa
               </div>
-            </CardContent>
-          </Card>
-          <CrudSection
-            key={active}
-            table={section.table}
-            fields={section.fields}
-            idField={section.idField}
-            labelField={section.labelField}
-          />
+              <div
+                style={{
+                  fontSize: 12.5,
+                  color: "var(--ink-muted)",
+                  marginTop: 4,
+                }}
+              >
+                PNG ou SVG, fundo transparente. Aparece em relatórios e
+                contratos.
+              </div>
+              <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  disabled
+                >
+                  <Icon name="upload" />
+                  Enviar arquivo
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-sm"
+                  disabled
+                >
+                  Remover
+                </button>
+              </div>
+            </div>
+          </div>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "1fr 1fr",
+              gap: 14,
+            }}
+          >
+            <Field label="Razão social" value="Granum (configurar)" cols={2} />
+            <Field label="Nome fantasia" value="Granum" />
+            <Field label="CNPJ" value="—" />
+            <Field label="E-mail institucional" value="—" type="email" />
+            <Field label="Telefone" value="—" type="tel" />
+            <Field
+              label="Endereço"
+              value="—"
+              cols={2}
+              type="textarea"
+            />
+          </div>
         </div>
       </div>
     </div>
   )
 }
 
-interface CrudProps {
+interface CatalogProps {
   table: string
   fields: string[]
   idField: string
   labelField: string
 }
 
-function CrudSection({ table, fields, idField, labelField }: CrudProps) {
+function CatalogSection({
+  title,
+  description,
+  ...rest
+}: CatalogProps & { title: string; description: string }) {
+  const { table, fields, idField, labelField } = rest
   const [items, setItems] = useState<Record<string, unknown>[]>([])
   const [editing, setEditing] = useState<
     Record<string, unknown> | null | undefined
   >(undefined)
   const [formData, setFormData] = useState<Record<string, string>>({})
   const [saving, setSaving] = useState(false)
-  const [isLoading, setIsLoading] = useState(true)
 
   const load = useCallback(async () => {
-    setIsLoading(true)
     const supabase = createClient()
-    const { data, error } = await supabase
+    const { data } = await supabase
       .from(table)
       .select("*")
       .order(labelField)
-    if (error) {
-      toast.error("Erro ao carregar: " + error.message)
-    }
     setItems((data ?? []) as Record<string, unknown>[])
-    setIsLoading(false)
   }, [table, labelField])
 
   useEffect(() => {
@@ -208,11 +264,6 @@ function CrudSection({ table, fields, idField, labelField }: CrudProps) {
     }
   }
 
-  function cancelEdit() {
-    setEditing(undefined)
-    setFormData({})
-  }
-
   async function save() {
     setSaving(true)
     const supabase = createClient()
@@ -221,146 +272,290 @@ function CrudSection({ table, fields, idField, labelField }: CrudProps) {
       if (f === "ordem") payload[f] = Number(formData[f]) || 0
       else payload[f] = formData[f] || null
     })
-
     if (editing) {
       const { error } = await supabase
         .from(table)
         .update(payload)
         .eq(idField, editing[idField] as number)
+      setSaving(false)
       if (error) {
-        setSaving(false)
         toast.error("Erro: " + error.message)
         return
       }
       toast.success("Atualizado")
     } else {
       const { error } = await supabase.from(table).insert(payload)
+      setSaving(false)
       if (error) {
-        setSaving(false)
         toast.error("Erro: " + error.message)
         return
       }
       toast.success("Criado")
     }
-    setSaving(false)
-    cancelEdit()
+    setEditing(undefined)
     load()
   }
 
   const showForm = editing !== undefined
 
   return (
-    <div className="space-y-3">
-      <div className="flex items-center justify-between">
-        <span className="text-[12.5px] text-muted-foreground">
-          {items.length} registro{items.length === 1 ? "" : "s"}
-        </span>
+    <div className="card">
+      <div className="card-head">
+        <div>
+          <div
+            style={{
+              fontSize: 11,
+              color: "var(--ink-muted)",
+              textTransform: "uppercase",
+              letterSpacing: "0.04em",
+            }}
+          >
+            {title}
+          </div>
+          <div style={{ fontSize: 14, color: "var(--ink-muted)" }}>
+            {description}
+          </div>
+        </div>
         {!showForm ? (
-          <Button size="sm" onClick={() => startEdit(null)}>
-            <Plus data-icon="inline-start" />
+          <button
+            type="button"
+            className="btn btn-primary btn-sm"
+            onClick={() => startEdit(null)}
+          >
+            <Icon name="plus" />
             Novo
-          </Button>
+          </button>
         ) : null}
       </div>
 
-      {showForm ? (
-        <Card>
-          <CardContent className="space-y-3 py-5">
-            <h3 className="text-[14px] font-semibold text-foreground">
-              {editing ? "Editar registro" : "Novo registro"}
-            </h3>
+      <div className="card-body">
+        {showForm ? (
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "1fr 1fr",
+              gap: 14,
+              marginBottom: 18,
+              paddingBottom: 18,
+              borderBottom: "1px solid var(--line)",
+            }}
+          >
             {fields.map((f) => (
-              <div key={f}>
-                <Label className="capitalize">{f.replace("_", " ")}</Label>
+              <div
+                key={f}
+                className="field"
+                style={{ gridColumn: f === "descricao" ? "span 2" : "span 1" }}
+              >
+                <label className="field-label">
+                  {f.charAt(0).toUpperCase() + f.slice(1).replace("_", " ")}
+                </label>
                 {f === "descricao" ? (
-                  <Textarea
+                  <textarea
+                    className="input"
+                    rows={2}
                     value={formData[f] ?? ""}
                     onChange={(e) =>
-                      setFormData((p) => ({ ...p, [f]: e.target.value }))
+                      setFormData({ ...formData, [f]: e.target.value })
                     }
                   />
                 ) : (
-                  <Input
+                  <input
+                    className="input"
+                    type={f === "ordem" ? "number" : "text"}
                     value={formData[f] ?? ""}
                     onChange={(e) =>
-                      setFormData((p) => ({ ...p, [f]: e.target.value }))
+                      setFormData({ ...formData, [f]: e.target.value })
                     }
-                    type={f === "ordem" ? "number" : "text"}
                   />
                 )}
               </div>
             ))}
-            <div className="flex gap-2 pt-1">
-              <Button size="sm" onClick={save} disabled={saving}>
-                {saving ? "Salvando…" : editing ? "Atualizar" : "Salvar"}
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={cancelEdit}
+            <div
+              style={{ gridColumn: "span 2", display: "flex", gap: 8 }}
+            >
+              <button
+                type="button"
+                className="btn btn-primary btn-sm"
+                onClick={save}
                 disabled={saving}
               >
+                {saving ? "Salvando…" : editing ? "Atualizar" : "Salvar"}
+              </button>
+              <button
+                type="button"
+                className="btn btn-ghost btn-sm"
+                onClick={() => setEditing(undefined)}
+              >
                 Cancelar
-              </Button>
+              </button>
             </div>
-          </CardContent>
-        </Card>
-      ) : null}
+          </div>
+        ) : null}
 
-      <Card>
-        <CardContent className="p-0">
-          {isLoading ? (
-            <div className="px-5 py-10 text-center text-sm text-muted-foreground">
-              Carregando…
-            </div>
-          ) : items.length === 0 ? (
-            <div className="px-5 py-10 text-center text-sm text-muted-foreground">
+        <div className="list-table" style={{ border: 0 }}>
+          {items.length === 0 ? (
+            <div
+              style={{
+                padding: "20px 0",
+                textAlign: "center",
+                color: "var(--ink-muted)",
+                fontSize: 13,
+              }}
+            >
               Nenhum registro. Crie o primeiro.
             </div>
           ) : (
-            <ul className="divide-y divide-border">
-              {items.map((item) => (
-                <li
-                  key={item[idField] as number}
-                  className="flex items-center justify-between gap-4 px-5 py-3 hover:bg-muted/30"
-                >
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      {(item as Record<string, string>).codigo ? (
-                        <CategoryChip tone="neutral">
-                          <span className="mono tabular-nums">
-                            {String((item as Record<string, string>).codigo)}
-                          </span>
-                        </CategoryChip>
-                      ) : null}
-                      <span className="text-[13.5px] font-medium text-foreground">
-                        {String(item[labelField] ?? "")}
-                      </span>
-                      {typeof item.ordem === "number" ? (
-                        <CategoryChip tone="info">ordem {item.ordem as number}</CategoryChip>
-                      ) : null}
-                    </div>
-                    {(item as Record<string, string>).descricao ? (
-                      <p className="mt-0.5 text-[12px] text-muted-foreground">
-                        {String((item as Record<string, string>).descricao)}
-                      </p>
-                    ) : null}
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    onClick={() => startEdit(item)}
-                    aria-label="Editar"
+            items.map((item) => (
+              <div
+                key={item[idField] as number}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  padding: "10px 0",
+                  borderBottom: "1px solid var(--line)",
+                }}
+              >
+                <div>
+                  <div
+                    style={{
+                      fontSize: 13,
+                      color: "var(--ink)",
+                      fontWeight: 500,
+                    }}
                   >
-                    <Pencil />
-                  </Button>
-                </li>
-              ))}
-            </ul>
+                    {(item as Record<string, string>).codigo ? (
+                      <span className="mono sub" style={{ marginRight: 6 }}>
+                        [{String((item as Record<string, string>).codigo)}]
+                      </span>
+                    ) : null}
+                    {String(item[labelField] ?? "")}
+                  </div>
+                  {(item as Record<string, string>).descricao ? (
+                    <div className="sub" style={{ marginTop: 2 }}>
+                      {String((item as Record<string, string>).descricao)}
+                    </div>
+                  ) : null}
+                </div>
+                <button
+                  type="button"
+                  className="icon-btn"
+                  onClick={() => startEdit(item)}
+                >
+                  <Icon name="edit" />
+                </button>
+              </div>
+            ))
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     </div>
   )
 }
 
+function TabCatalogos() {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+      {CATALOG_DEFS.map((c) => (
+        <CatalogSection
+          key={c.key}
+          table={c.table}
+          fields={c.fields}
+          idField={c.idField}
+          labelField={c.labelField}
+          title={c.title}
+          description={c.description}
+        />
+      ))}
+    </div>
+  )
+}
+
+function PlaceholderTab({ title, message }: { title: string; message: string }) {
+  return (
+    <div className="card">
+      <div className="card-body" style={{ padding: 40, textAlign: "center" }}>
+        <div
+          style={{
+            width: 48,
+            height: 48,
+            margin: "0 auto 12px",
+            borderRadius: 24,
+            background: "var(--surface-muted)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            color: "var(--ink-muted)",
+          }}
+        >
+          <Icon name="settings" />
+        </div>
+        <div style={{ fontSize: 15, fontWeight: 600 }}>{title}</div>
+        <div style={{ marginTop: 6, color: "var(--ink-muted)", fontSize: 13 }}>
+          {message}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+export default function ConfiguracoesPage() {
+  const [tab, setTab] = useState<Tab>("empresa")
+
+  return (
+    <>
+      <div className="page-head">
+        <div className="page-head-top">
+          <div className="page-head-title">
+            <div className="obra-id">Workspace · Granum</div>
+            <h1>Configurações</h1>
+            <div className="subtitle">
+              Empresa, equipe, permissões e preferências do sistema
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div
+        style={{ display: "grid", gridTemplateColumns: "240px 1fr", gap: 18 }}
+      >
+        <nav className="settings-nav">
+          {TABS.map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              className={"settings-nav-item" + (tab === t.id ? " active" : "")}
+              onClick={() => setTab(t.id)}
+            >
+              <Icon name={t.icon} />
+              <span>{t.label}</span>
+            </button>
+          ))}
+        </nav>
+
+        <div>
+          {tab === "empresa" ? <TabEmpresa /> : null}
+          {tab === "catalogos" ? <TabCatalogos /> : null}
+          {tab === "categorias" ? (
+            <PlaceholderTab
+              title="Categorias e tags"
+              message="Configuração de categorias e tags em desenvolvimento."
+            />
+          ) : null}
+          {tab === "notificacoes" ? (
+            <PlaceholderTab
+              title="Notificações"
+              message="Preferências de notificações por canal em desenvolvimento."
+            />
+          ) : null}
+          {tab === "plano" ? (
+            <PlaceholderTab
+              title="Plano e cobrança"
+              message="Gestão de plano e histórico de faturas em desenvolvimento."
+            />
+          ) : null}
+        </div>
+      </div>
+    </>
+  )
+}

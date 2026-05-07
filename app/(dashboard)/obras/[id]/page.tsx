@@ -1,41 +1,23 @@
 "use client"
 
+// Port literal de granum-design/app.jsx + "Painel da Obra.html"
+
 import Link from "next/link"
-import { useEffect, useState } from "react"
+import { useEffect, useState, useCallback } from "react"
 import { useParams } from "next/navigation"
 import { differenceInCalendarDays, parseISO } from "date-fns"
-import {
-  Activity,
-  ArrowLeft,
-  Calendar,
-  HardHat,
-  ListChecks,
-  MapPin,
-  Pencil,
-  TrendingDown,
-  TrendingUp,
-  User,
-} from "lucide-react"
 
-import { ObraForm } from "@/components/forms/obra-form"
 import { DiariosTab } from "@/components/obra-tabs/diarios-tab"
 import { DocumentosTab } from "@/components/obra-tabs/documentos-tab"
 import { EquipeTab } from "@/components/obra-tabs/equipe-tab"
 import { FinanceiroTab } from "@/components/obra-tabs/financeiro-tab"
 import { TarefasTab } from "@/components/obra-tabs/tarefas-tab"
-import { CategoryChip } from "@/components/shared/category-chip"
-import { KpiCard, KpiGrid } from "@/components/shared/kpi-card"
-import { PageHeader } from "@/components/shared/page-header"
-import { ProgressBar } from "@/components/shared/progress-bar"
-import { StatusBadge } from "@/components/shared/status-badge"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Icon } from "@/components/granum/icon"
+import { ObraForm } from "@/components/forms/obra-form"
 import { useUser } from "@/lib/hooks/use-user"
-import { OBRA_STATUS, TAREFA_STATUS } from "@/lib/constants"
+import { OBRA_STATUS } from "@/lib/constants"
 import { createClient } from "@/lib/supabase/client"
-import { cn } from "@/lib/utils"
-import { formatBRL, formatDate } from "@/lib/utils/format"
+import { formatDate } from "@/lib/utils/format"
 
 interface Obra {
   id_obra: number
@@ -53,11 +35,90 @@ interface Obra {
   id_responsavel: number | null
 }
 
-interface Tarefa {
-  id_tarefa: number
-  nome: string
-  status: string
-  percentual_concluido: number
+const STATUS_META: Record<
+  string,
+  { label: string; dot: string; bg: string; fg: string }
+> = {
+  em_andamento: {
+    label: "Em andamento",
+    dot: "var(--info)",
+    bg: "var(--info-soft)",
+    fg: "var(--info-ink)",
+  },
+  atrasada: {
+    label: "Atrasada",
+    dot: "var(--danger)",
+    bg: "var(--danger-soft)",
+    fg: "var(--danger-ink)",
+  },
+  pausada: {
+    label: "Pausada",
+    dot: "var(--warning)",
+    bg: "var(--warning-soft)",
+    fg: "var(--warning-ink)",
+  },
+  planejamento: {
+    label: "Planejamento",
+    dot: "var(--planned)",
+    bg: "var(--surface-muted)",
+    fg: "var(--ink-muted)",
+  },
+  concluida: {
+    label: "Concluída",
+    dot: "var(--success)",
+    bg: "var(--success-soft)",
+    fg: "var(--success-ink)",
+  },
+  cancelada: {
+    label: "Cancelada",
+    dot: "var(--danger)",
+    bg: "var(--danger-soft)",
+    fg: "var(--danger-ink)",
+  },
+}
+
+function getInitials(nome: string): string {
+  const parts = nome.trim().split(/\s+/).filter(Boolean)
+  if (parts.length === 0) return "?"
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase()
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
+}
+
+function fmtBRLk(v: number): string {
+  if (!v) return "R$ 0"
+  if (v >= 1_000_000)
+    return "R$ " + (v / 1_000_000).toFixed(2).replace(".", ",") + " mi"
+  if (v >= 1000) return "R$ " + Math.round(v / 1000) + " mil"
+  return "R$ " + v
+}
+
+function StatusBadge({ s }: { s: string }) {
+  const m = STATUS_META[s] ?? STATUS_META.em_andamento
+  return (
+    <span
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 6,
+        padding: "3px 10px",
+        borderRadius: 999,
+        background: m.bg,
+        color: m.fg,
+        fontSize: 11.5,
+        fontWeight: 500,
+      }}
+    >
+      <span
+        style={{
+          width: 7,
+          height: 7,
+          borderRadius: "50%",
+          background: m.dot,
+        }}
+      />
+      {m.label}
+    </span>
+  )
 }
 
 export default function ObraPainelPage() {
@@ -66,17 +127,19 @@ export default function ObraPainelPage() {
   const [obra, setObra] = useState<Obra | null>(null)
   const [clienteNome, setClienteNome] = useState("")
   const [responsavelNome, setResponsavelNome] = useState("")
-  const [centroCustoNome, setCentroCustoNome] = useState("")
-  const [tarefas, setTarefas] = useState<Tarefa[]>([])
-  const [kpis, setKpis] = useState({
-    planejado: 0,
-    realizado: 0,
-    nTarefas: 0,
-    nTrabalhadores: 0,
+  const [counts, setCounts] = useState({
+    tarefas: 0,
+    equipe: 0,
+    docs: 0,
+    diarios: 0,
   })
+  const [orcamento, setOrcamento] = useState(0)
+  const [tab, setTab] = useState<
+    "resumo" | "tarefas" | "equipe" | "financeiro" | "documentos" | "diarios"
+  >("resumo")
   const [formOpen, setFormOpen] = useState(false)
 
-  async function load() {
+  const load = useCallback(async () => {
     const supabase = createClient()
     const id = Number(params.id)
 
@@ -104,394 +167,305 @@ export default function ObraPainelPage() {
       setResponsavelNome((resp as { nome: string } | null)?.nome ?? "")
     }
 
-    if (o.id_centro_custo) {
-      const { data: cc } = await supabase
-        .from("centro_custo")
-        .select("codigo, nome")
-        .eq("id_centro_custo", o.id_centro_custo)
-        .single()
-      setCentroCustoNome(
-        cc
-          ? `${(cc as { codigo: string; nome: string }).codigo} · ${(cc as { codigo: string; nome: string }).nome}`
-          : ""
-      )
-    }
+    const [
+      { count: tarefasCount },
+      { count: contratosCount },
+      { count: docsCount },
+      { count: diariosCount },
+      { data: lancs },
+    ] = await Promise.all([
+      supabase
+        .from("tarefa")
+        .select("*", { count: "exact", head: true })
+        .eq("id_obra", id),
+      supabase
+        .from("contrato_trabalho")
+        .select("*", { count: "exact", head: true })
+        .eq("id_obra", id)
+        .eq("status", "ativo"),
+      supabase
+        .from("documento")
+        .select("*", { count: "exact", head: true })
+        .eq("id_obra", id),
+      supabase
+        .from("diario_obra")
+        .select("*", { count: "exact", head: true })
+        .eq("id_obra", id),
+      supabase
+        .from("lancamento")
+        .select("valor, tipo")
+        .eq("id_obra", id)
+        .eq("tipo", "planejado"),
+    ])
 
-    const { data: tarefasData } = await supabase
-      .from("tarefa")
-      .select("id_tarefa, nome, status, percentual_concluido")
-      .eq("id_obra", id)
-      .order("ordem")
-    setTarefas((tarefasData ?? []) as Tarefa[])
-
-    const { data: lancs } = await supabase
-      .from("lancamento")
-      .select("valor, tipo")
-      .eq("id_obra", id)
-    const lancsList = (lancs ?? []) as { valor: number; tipo: string }[]
-    const planejado = lancsList
-      .filter((l) => l.tipo === "planejado")
-      .reduce((s, l) => s + Number(l.valor), 0)
-    const realizado = lancsList
-      .filter((l) => l.tipo === "realizado")
-      .reduce((s, l) => s + Number(l.valor), 0)
-
-    const { data: contratos } = await supabase
-      .from("contrato_trabalho")
-      .select("id_trabalhador")
-      .eq("id_obra", id)
-      .eq("status", "ativo")
-    const uniqueWorkers = new Set(
-      (contratos ?? []).map(
-        (c: { id_trabalhador: number }) => c.id_trabalhador
+    setCounts({
+      tarefas: tarefasCount ?? 0,
+      equipe: contratosCount ?? 0,
+      docs: docsCount ?? 0,
+      diarios: diariosCount ?? 0,
+    })
+    setOrcamento(
+      (lancs ?? []).reduce(
+        (a: number, l: { valor: number }) => a + Number(l.valor),
+        0
       )
     )
-
-    setKpis({
-      planejado,
-      realizado,
-      nTarefas: (tarefasData ?? []).length,
-      nTrabalhadores: uniqueWorkers.size,
-    })
-  }
+  }, [params.id])
 
   useEffect(() => {
     load()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [params.id])
+  }, [load])
 
   if (!obra) {
     return (
-      <div className="flex h-64 items-center justify-center text-sm text-muted-foreground">
+      <div
+        style={{
+          padding: "60px 24px",
+          textAlign: "center",
+          color: "var(--ink-muted)",
+        }}
+      >
         Carregando obra…
       </div>
     )
   }
 
-  const canEdit = role === "diretor" || role === "engenheiro"
-  const variacao =
-    kpis.planejado > 0
-      ? ((kpis.realizado - kpis.planejado) / kpis.planejado) * 100
-      : 0
-  const variacaoTone =
-    Math.abs(variacao) < 5
-      ? "neutral"
-      : variacao > 15
-        ? "danger"
-        : variacao > 0
-          ? "warning"
-          : "success"
-
-  const tarefasConcluidas = tarefas.filter((t) => t.status === "concluida").length
-  const tarefasAtivas = tarefas.filter(
-    (t) => t.status !== "concluida" && t.status !== "cancelada"
-  ).length
-
-  const diasParaFim = obra.data_fim_prevista
-    ? differenceInCalendarDays(parseISO(obra.data_fim_prevista), new Date())
-    : null
-
   const obraCode = `OBR-${String(obra.id_obra).padStart(4, "0")}`
+  const pct = Math.round(obra.percentual_finalizada ?? 0)
+  const today = new Date()
+  const fim = obra.data_fim_prevista ? parseISO(obra.data_fim_prevista) : null
+  const atrasado =
+    fim && fim < today && obra.status === "em_andamento"
+  const statusToShow = atrasado ? "atrasada" : obra.status
+
+  const tabs = [
+    { id: "resumo", label: "Resumo", icon: "layout", count: undefined },
+    {
+      id: "tarefas",
+      label: "Tarefas",
+      icon: "list",
+      count: counts.tarefas,
+    },
+    {
+      id: "equipe",
+      label: "Equipe",
+      icon: "users",
+      count: counts.equipe,
+    },
+    {
+      id: "financeiro",
+      label: "Financeiro",
+      icon: "dollar",
+      count: undefined,
+    },
+    {
+      id: "documentos",
+      label: "Documentos",
+      icon: "folder",
+      count: counts.docs,
+    },
+    {
+      id: "diarios",
+      label: "Diários",
+      icon: "book",
+      count: counts.diarios,
+    },
+  ] as const
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-2 text-[12.5px] text-muted-foreground">
-        <Link
-          href="/obras"
-          className="inline-flex items-center gap-1 hover:text-foreground"
-        >
-          <ArrowLeft className="size-3.5" />
-          Obras
-        </Link>
-        <span>·</span>
-        <span className="mono tabular-nums">{obraCode}</span>
+    <>
+      <div className="page-head">
+        <div className="page-head-top">
+          <div
+            className="page-head-title"
+            style={{ minWidth: 0, flex: 1 }}
+          >
+            <div
+              className="obra-id"
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+                marginBottom: 4,
+              }}
+            >
+              <span className="mono">{obraCode}</span>
+              <span style={{ color: "var(--ink-soft)" }}>·</span>
+              <StatusBadge s={statusToShow} />
+            </div>
+            <h1 style={{ margin: 0 }}>{obra.nome}</h1>
+            <div
+              className="subtitle"
+              style={{
+                marginTop: 6,
+                display: "flex",
+                alignItems: "center",
+                gap: 14,
+                flexWrap: "wrap",
+              }}
+            >
+              {clienteNome ? (
+                <span
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 5,
+                  }}
+                >
+                  <Icon
+                    name="users"
+                    style={{
+                      width: 13,
+                      height: 13,
+                      color: "var(--ink-soft)",
+                    }}
+                  />
+                  Cliente:{" "}
+                  <Link
+                    href={`/clientes/${obra.id_cliente}`}
+                    style={{ color: "var(--ink)", fontWeight: 500 }}
+                  >
+                    {clienteNome}
+                  </Link>
+                </span>
+              ) : null}
+              {obra.endereco ? (
+                <>
+                  <span style={{ color: "var(--line-strong)" }}>·</span>
+                  <span
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 5,
+                    }}
+                  >
+                    <Icon
+                      name="mapPin"
+                      style={{
+                        width: 13,
+                        height: 13,
+                        color: "var(--ink-soft)",
+                      }}
+                    />
+                    {obra.endereco}
+                  </span>
+                </>
+              ) : null}
+            </div>
+          </div>
+          <div className="page-head-actions">
+            <button className="btn btn-ghost" type="button" disabled>
+              <Icon name="sparkle" />
+              Ação rápida
+            </button>
+            <button
+              className="btn btn-secondary"
+              type="button"
+              onClick={() => setFormOpen(true)}
+            >
+              <Icon name="edit" />
+              Editar obra
+            </button>
+            <button
+              className="btn btn-primary"
+              type="button"
+              onClick={() => setTab("tarefas")}
+            >
+              <Icon name="plus" />
+              Nova tarefa
+            </button>
+            <button
+              type="button"
+              className="icon-btn"
+              style={{
+                border: "1px solid var(--line-strong)",
+                height: 34,
+                width: 34,
+              }}
+            >
+              <Icon name="more" />
+            </button>
+          </div>
+        </div>
+        <div className="meta-row">
+          <div className="meta-item">
+            <span className="label">Progresso</span>
+            <div className="progress-label" style={{ marginTop: 2 }}>
+              <div className="progress">
+                <div style={{ width: pct + "%", background: "var(--primary)" }} />
+              </div>
+              <span className="pct">{pct}%</span>
+            </div>
+          </div>
+          <div className="meta-item">
+            <span className="label">Responsável</span>
+            <span className="value">
+              {responsavelNome ? (
+                <>
+                  <span className="avatar-sm">{getInitials(responsavelNome)}</span>
+                  {responsavelNome}
+                </>
+              ) : (
+                <span style={{ color: "var(--ink-muted)" }}>—</span>
+              )}
+            </span>
+          </div>
+          <div className="meta-item">
+            <span className="label">Início</span>
+            <span className="value mono">
+              {obra.data_inicio_prevista
+                ? formatDate(obra.data_inicio_prevista)
+                : "—"}
+            </span>
+          </div>
+          <div className="meta-item">
+            <span className="label">Previsão de entrega</span>
+            <span className="value mono">
+              {obra.data_fim_prevista
+                ? formatDate(obra.data_fim_prevista)
+                : "—"}
+            </span>
+          </div>
+          <div className="meta-item">
+            <span className="label">Orçamento</span>
+            <span className="value mono">{fmtBRLk(orcamento)}</span>
+          </div>
+        </div>
       </div>
 
-      <PageHeader
-        eyebrow={`Obras · ${clienteNome || "—"}`}
-        title={obra.nome}
-        badge={<StatusBadge status={obra.status} statusMap={OBRA_STATUS} />}
-        subtitle={
-          <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
-            {responsavelNome ? (
-              <span className="inline-flex items-center gap-1">
-                <User className="size-3.5" />
-                {responsavelNome}
-              </span>
-            ) : null}
-            {centroCustoNome ? (
-              <span className="inline-flex items-center gap-1 mono tabular-nums">
-                <Activity className="size-3.5" />
-                {centroCustoNome}
-              </span>
-            ) : null}
-            {obra.endereco ? (
-              <span className="inline-flex items-center gap-1">
-                <MapPin className="size-3.5" />
-                {obra.endereco}
-              </span>
-            ) : null}
-          </span>
-        }
-        actions={
-          canEdit ? (
-            <Button variant="outline" size="sm" onClick={() => setFormOpen(true)}>
-              <Pencil data-icon="inline-start" />
-              Editar
-            </Button>
-          ) : null
-        }
-      />
+      <div className="tabs">
+        {tabs.map((t) => (
+          <button
+            key={t.id}
+            type="button"
+            className={"tab" + (tab === t.id ? " active" : "")}
+            onClick={() => setTab(t.id)}
+          >
+            <Icon name={t.icon} />
+            {t.label}
+            {t.count != null ? <span className="count">{t.count}</span> : null}
+          </button>
+        ))}
+      </div>
 
-      <Card>
-        <CardContent className="space-y-3 py-5">
-          <div className="flex items-baseline justify-between">
-            <div className="text-[12px] font-semibold uppercase tracking-wider text-muted-foreground">
-              Progresso físico
-            </div>
-            <div className="mono text-2xl font-semibold tabular-nums text-foreground">
-              {Math.round(obra.percentual_finalizada ?? 0)}
-              <span className="text-base text-muted-foreground">%</span>
-            </div>
-          </div>
-          <ProgressBar value={obra.percentual_finalizada ?? 0} />
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[12px] text-muted-foreground">
-            {obra.data_inicio_prevista ? (
-              <span className="inline-flex items-center gap-1">
-                <Calendar className="size-3.5" />
-                Início: {formatDate(obra.data_inicio_prevista)}
-              </span>
-            ) : null}
-            {obra.data_fim_prevista ? (
-              <span className="inline-flex items-center gap-1">
-                <Calendar className="size-3.5" />
-                Fim: {formatDate(obra.data_fim_prevista)}
-                {diasParaFim !== null ? (
-                  <CategoryChip
-                    tone={
-                      diasParaFim < 0
-                        ? "danger"
-                        : diasParaFim < 30
-                          ? "warning"
-                          : "info"
-                    }
-                    className="ml-1"
-                  >
-                    {diasParaFim < 0
-                      ? `${Math.abs(diasParaFim)}d em atraso`
-                      : `${diasParaFim}d restantes`}
-                  </CategoryChip>
-                ) : null}
-              </span>
-            ) : null}
-          </div>
-        </CardContent>
-      </Card>
-
-      <KpiGrid cols={4}>
-        <KpiCard
-          label="Custo planejado"
-          value={formatBRL(kpis.planejado)}
-          sub="Total previsto"
-          icon={<Activity />}
-        />
-        <KpiCard
-          tone="info"
-          label="Custo realizado"
-          value={formatBRL(kpis.realizado)}
-          sub={
-            kpis.planejado > 0
-              ? `${Math.round((kpis.realizado * 100) / kpis.planejado)}% do planejado`
-              : "Sem planejamento"
-          }
-          icon={<TrendingUp />}
-        />
-        <KpiCard
-          tone={variacaoTone}
-          label="Variação"
-          value={`${variacao >= 0 ? "+" : ""}${variacao.toFixed(1)}%`}
-          sub={
-            Math.abs(variacao) < 5
-              ? "Dentro do previsto"
-              : variacao > 0
-                ? "Acima do orçado"
-                : "Abaixo do orçado"
-          }
-          trend={variacao > 0 ? "down" : "up"}
-          icon={variacao > 0 ? <TrendingUp /> : <TrendingDown />}
-        />
-        <KpiCard
-          tone="primary"
-          label="Equipe"
-          value={kpis.nTrabalhadores}
-          sub={`${kpis.nTarefas} tarefa${kpis.nTarefas === 1 ? "" : "s"} · ${tarefasAtivas} em aberto`}
-          icon={<HardHat />}
-        />
-      </KpiGrid>
-
-      <Tabs defaultValue="resumo" className="space-y-4">
-        <TabsList className="w-full justify-start overflow-x-auto rounded-md border border-border bg-card p-1">
-          <TabsTrigger value="resumo">Resumo</TabsTrigger>
-          <TabsTrigger value="tarefas">Tarefas</TabsTrigger>
-          <TabsTrigger value="equipe">Equipe</TabsTrigger>
-          <TabsTrigger value="financeiro">Financeiro</TabsTrigger>
-          <TabsTrigger value="documentos">Documentos</TabsTrigger>
-          <TabsTrigger value="diarios">Diários</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="resumo" className="space-y-4">
-          <div className="grid gap-4 lg:grid-cols-3">
-            <Card className="lg:col-span-2">
-              <CardContent className="space-y-4 py-5">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-[15px] font-semibold text-foreground">
-                    Próximas tarefas
-                  </h3>
-                  <span className="text-[12px] text-muted-foreground">
-                    {tarefasConcluidas}/{kpis.nTarefas} concluídas
-                  </span>
-                </div>
-                {tarefasAtivas === 0 ? (
-                  <p className="py-6 text-center text-[13px] text-muted-foreground">
-                    {kpis.nTarefas === 0
-                      ? "Nenhuma tarefa cadastrada ainda."
-                      : "Todas as tarefas foram concluídas. 🎉"}
-                  </p>
-                ) : (
-                  <div className="space-y-1.5">
-                    {tarefas
-                      .filter(
-                        (t) =>
-                          t.status !== "concluida" && t.status !== "cancelada"
-                      )
-                      .slice(0, 6)
-                      .map((t) => (
-                        <div
-                          key={t.id_tarefa}
-                          className="flex items-center justify-between gap-3 rounded-md border border-border px-3 py-2 hover:bg-muted/30"
-                        >
-                          <span className="min-w-0 truncate text-[13px] text-foreground">
-                            {t.nome}
-                          </span>
-                          <div className="flex shrink-0 items-center gap-3">
-                            <ProgressBar
-                              value={t.percentual_concluido ?? 0}
-                              className="w-24"
-                            />
-                            <span className="mono w-8 text-right text-[11.5px] font-medium tabular-nums text-muted-foreground">
-                              {Math.round(t.percentual_concluido ?? 0)}%
-                            </span>
-                            <StatusBadge
-                              status={t.status}
-                              statusMap={TAREFA_STATUS}
-                            />
-                          </div>
-                        </div>
-                      ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardContent className="space-y-4 py-5">
-                <h3 className="text-[15px] font-semibold text-foreground">
-                  Detalhes
-                </h3>
-                <dl className="space-y-2.5 text-[13px]">
-                  <Detail label="Cliente" value={clienteNome || "—"} />
-                  <Detail label="Responsável" value={responsavelNome || "—"} />
-                  {centroCustoNome ? (
-                    <Detail label="Centro de custo" value={centroCustoNome} mono />
-                  ) : null}
-                  {obra.endereco ? (
-                    <Detail label="Endereço" value={obra.endereco} />
-                  ) : null}
-                  {obra.data_inicio_prevista ? (
-                    <Detail
-                      label="Início previsto"
-                      value={formatDate(obra.data_inicio_prevista)}
-                      mono
-                    />
-                  ) : null}
-                  {obra.data_fim_prevista ? (
-                    <Detail
-                      label="Fim previsto"
-                      value={formatDate(obra.data_fim_prevista)}
-                      mono
-                    />
-                  ) : null}
-                  {obra.data_inicio_real ? (
-                    <Detail
-                      label="Início real"
-                      value={formatDate(obra.data_inicio_real)}
-                      mono
-                    />
-                  ) : null}
-                  {obra.descricao ? (
-                    <div>
-                      <dt className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                        Descrição
-                      </dt>
-                      <dd className="mt-1 text-foreground">{obra.descricao}</dd>
-                    </div>
-                  ) : null}
-                </dl>
-              </CardContent>
-            </Card>
-          </div>
-
-          <Card>
-            <CardContent className="space-y-2 py-5">
-              <h3 className="flex items-center gap-2 text-[15px] font-semibold text-foreground">
-                <ListChecks className="size-4" />
-                Resumo de tarefas por status
-              </h3>
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
-                {(
-                  Object.entries(TAREFA_STATUS) as [
-                    keyof typeof TAREFA_STATUS,
-                    { label: string },
-                  ][]
-                ).map(([status, meta]) => {
-                  const count = tarefas.filter((t) => t.status === status).length
-                  return (
-                    <div
-                      key={status}
-                      className={cn(
-                        "rounded-md border border-border px-3 py-2.5"
-                      )}
-                    >
-                      <div className="text-[11px] uppercase tracking-wider text-muted-foreground">
-                        {meta.label}
-                      </div>
-                      <div className="mono text-xl font-semibold tabular-nums text-foreground">
-                        {count}
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="tarefas">
+      <div style={{ marginTop: 18 }}>
+        {tab === "resumo" ? (
+          <ResumoTab obra={obra} pct={pct} />
+        ) : null}
+        {tab === "tarefas" ? (
           <TarefasTab obraId={obra.id_obra} role={role} />
-        </TabsContent>
-        <TabsContent value="equipe">
-          <EquipeTab obraId={obra.id_obra} />
-        </TabsContent>
-        <TabsContent value="financeiro">
+        ) : null}
+        {tab === "equipe" ? <EquipeTab obraId={obra.id_obra} /> : null}
+        {tab === "financeiro" ? (
           <FinanceiroTab obraId={obra.id_obra} />
-        </TabsContent>
-        <TabsContent value="documentos">
+        ) : null}
+        {tab === "documentos" ? (
           <DocumentosTab obraId={obra.id_obra} />
-        </TabsContent>
-        <TabsContent value="diarios">
+        ) : null}
+        {tab === "diarios" ? (
           <DiariosTab obraId={obra.id_obra} role={role} />
-        </TabsContent>
-      </Tabs>
+        ) : null}
+      </div>
 
       <ObraForm
         open={formOpen}
@@ -499,32 +473,131 @@ export default function ObraPainelPage() {
         obra={obra as unknown as Record<string, unknown>}
         onSuccess={load}
       />
-    </div>
+    </>
   )
 }
 
-function Detail({
-  label,
-  value,
-  mono,
-}: {
-  label: string
-  value: string
-  mono?: boolean
-}) {
+function ResumoTab({ obra, pct }: { obra: Obra; pct: number }) {
   return (
-    <div className="flex items-baseline justify-between gap-3">
-      <dt className="shrink-0 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-        {label}
-      </dt>
-      <dd
-        className={cn(
-          "min-w-0 truncate text-right text-foreground",
-          mono && "mono tabular-nums"
-        )}
-      >
-        {value}
-      </dd>
+    <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 18 }}>
+      <div className="card">
+        <div className="card-head">
+          <div>
+            <div
+              style={{
+                fontSize: 11,
+                color: "var(--ink-muted)",
+                textTransform: "uppercase",
+                letterSpacing: "0.04em",
+              }}
+            >
+              Resumo
+            </div>
+            <div style={{ fontSize: 15, fontWeight: 600 }}>
+              Status atual da obra
+            </div>
+          </div>
+        </div>
+        <div className="card-body">
+          <div
+            style={{
+              fontSize: 13,
+              color: "var(--ink)",
+              lineHeight: 1.6,
+              marginBottom: 14,
+            }}
+          >
+            {obra.descricao ??
+              "A obra está em andamento. Use as abas acima para gerenciar tarefas, equipe, financeiro, documentos e diários."}
+          </div>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "1fr 1fr",
+              gap: 14,
+              marginTop: 14,
+            }}
+          >
+            <div>
+              <div
+                style={{
+                  fontSize: 11,
+                  color: "var(--ink-muted)",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.04em",
+                  marginBottom: 4,
+                }}
+              >
+                Status do cronograma
+              </div>
+              <div className="progress" style={{ marginTop: 4 }}>
+                <div
+                  style={{
+                    width: pct + "%",
+                    background: "var(--primary)",
+                  }}
+                />
+              </div>
+              <div
+                style={{ fontSize: 12, color: "var(--ink-muted)", marginTop: 4 }}
+              >
+                {pct}% concluído
+              </div>
+            </div>
+            <div>
+              <div
+                style={{
+                  fontSize: 11,
+                  color: "var(--ink-muted)",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.04em",
+                  marginBottom: 4,
+                }}
+              >
+                Status atual
+              </div>
+              <span
+                className="badge dot"
+                style={{
+                  background: "var(--info-soft)",
+                  color: "var(--info-ink)",
+                }}
+              >
+                {(OBRA_STATUS as Record<string, { label: string }>)[
+                  obra.status
+                ]?.label ?? obra.status}
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="card">
+        <div className="card-head">
+          <div>
+            <div
+              style={{
+                fontSize: 11,
+                color: "var(--ink-muted)",
+                textTransform: "uppercase",
+                letterSpacing: "0.04em",
+              }}
+            >
+              Endereço
+            </div>
+            <div style={{ fontSize: 15, fontWeight: 600 }}>Local da obra</div>
+          </div>
+        </div>
+        <div className="card-body">
+          <div style={{ fontSize: 13, color: "var(--ink)", lineHeight: 1.6 }}>
+            {obra.endereco ?? (
+              <span style={{ color: "var(--ink-muted)" }}>
+                Endereço não informado.
+              </span>
+            )}
+          </div>
+        </div>
+      </div>
     </div>
   )
 }
