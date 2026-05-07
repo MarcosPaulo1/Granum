@@ -1,0 +1,614 @@
+/* diario.css — T16 Formulário de diário + presenças
+   + T21 form de lançamento (shared form primitives)
+*/
+
+/* ====== Grid de 2 colunas: diário | presenças ====== */
+.diario-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+  gap: 18px;
+  margin-top: 18px;
+}
+@media (max-width: 1280px) {
+  .diario-grid { grid-template-columns: 1fr; }
+}
+
+/* ====== Form body ====== */
+.form-body {
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+.form-row {
+  display: grid;
+  gap: 16px;
+}
+.form-row-2 { grid-template-columns: 1fr 1fr; }
+.form-row-3 { grid-template-columns: 1fr 1fr 1fr; }
+
+.form-field { display: flex; flex-direction: column; }
+.form-field > label {
+  font-size: 11.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ink-muted);
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+.form-field input[type="text"],
+.form-field input[type="date"],
+.form-field input[type="number"],
+.form-field input[type="email"],
+.form-field select,
+.form-field textarea {
+  width: 100%;
+  box-sizing: border-box;
+  font-family: inherit;
+  font-size: 13.5px;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  padding: 0 12px;
+  height: 36px;
+  transition: border-color 0.12s, box-shadow 0.12s;
+}
+.form-field textarea {
+  height: auto;
+  padding: 10px 12px;
+  line-height: 1.55;
+  resize: vertical;
+  min-height: 100px;
+}
+.form-field select {
+  appearance: none;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2364748B' stroke-width='2'><polyline points='6 9 12 15 18 9'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  padding-right: 32px;
+}
+.form-field input:focus,
+.form-field select:focus,
+.form-field textarea:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--primary) 18%, transparent);
+}
+.form-hint {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  font-size: 11.5px;
+  color: var(--ink-muted);
+  margin-top: 8px;
+}
+.form-hint svg { width: 13px; height: 13px; flex-shrink: 0; margin-top: 2px; color: var(--primary); }
+
+/* ====== Origem do registro (buttons) ====== */
+.origem-group {
+  display: flex;
+  gap: 6px;
+  padding: 3px;
+  background: var(--surface-muted);
+  border-radius: 8px;
+  border: 1px solid var(--line);
+}
+.origem-btn {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 30px;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--ink-muted);
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+.origem-btn:hover { color: var(--ink); }
+.origem-btn.active {
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: var(--shadow-sm);
+}
+.origem-btn svg { width: 14px; height: 14px; }
+
+/* ====== Anexos ====== */
+.anexos-drop {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 18px;
+  border: 2px dashed var(--line-strong);
+  border-radius: 8px;
+  background: color-mix(in oklab, var(--primary) 3%, var(--surface));
+  cursor: pointer;
+  transition: border-color 0.12s, background 0.12s;
+}
+.anexos-drop:hover {
+  border-color: var(--primary);
+  background: color-mix(in oklab, var(--primary) 6%, var(--surface));
+}
+.anexos-drop > svg { width: 22px; height: 22px; color: var(--primary); }
+.anexos-list {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.anexo-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  background: var(--surface-muted);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+.anexo-item svg { width: 16px; height: 16px; color: var(--ink-muted); }
+
+/* ====== Aviso card ====== */
+.aviso-card {
+  display: flex;
+  gap: 12px;
+  padding: 14px 16px;
+  background: color-mix(in oklab, var(--primary) 5%, var(--surface));
+  border: 1px solid color-mix(in oklab, var(--primary) 25%, var(--line));
+  border-radius: var(--r-md);
+}
+.aviso-card > svg {
+  width: 18px; height: 18px;
+  color: var(--primary);
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+/* ====== Presenças ====== */
+.presenca-resumo {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--line);
+}
+.presenca-chip {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  padding: 10px 6px;
+  border-radius: 6px;
+}
+.presenca-list {
+  display: flex;
+  flex-direction: column;
+}
+.presenca-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--line);
+}
+.presenca-row:last-child { border-bottom: none; }
+.presenca-trab {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.presenca-trab-name {
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-bottom: 2px;
+}
+.presenca-trab-meta {
+  font-size: 11.5px;
+  color: var(--ink-muted);
+  display: flex;
+  gap: 5px;
+  flex-wrap: wrap;
+}
+
+.presenca-opcoes {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 4px;
+}
+.presenca-opt {
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--ink-muted);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  padding: 5px 6px;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+  white-space: nowrap;
+  text-align: center;
+}
+.presenca-opt:hover { border-color: var(--line-strong); color: var(--ink); }
+.presenca-opt.active { font-weight: 600; }
+
+.presenca-valor {
+  text-align: right;
+  min-width: 110px;
+}
+.presenca-obs-btn {
+  font-family: inherit;
+  font-size: 11px;
+  color: var(--ink-soft);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 4px;
+  padding: 2px 4px;
+}
+.presenca-obs-btn:hover { color: var(--primary); }
+.presenca-obs-btn svg { width: 11px; height: 11px; }
+
+.presenca-total {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 18px 20px;
+  background: color-mix(in oklab, var(--surface-muted) 70%, var(--surface));
+  border-top: 2px solid var(--line-strong);
+}
+
+/* ====== Sticky footer para ações de form ====== */
+.form-sticky-foot {
+  position: sticky;
+  bottom: 0;
+  margin-top: 18px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 20px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-sm);
+}
+
+/* ====== T21 — form de lançamento específico ====== */
+.lanc-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  gap: 18px;
+  margin-top: 18px;
+}
+@media (max-width: 1280px) { .lanc-grid { grid-template-columns: 1fr; } }
+
+.tipo-switch {
+  display: flex;
+  gap: 10px;
+}
+.tipo-switch-btn {
+  flex: 1;
+  padding: 14px 16px;
+  background: var(--surface);
+  border: 2px solid var(--line);
+  border-radius: var(--r-md);
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 0.12s, background 0.12s;
+  font-family: inherit;
+}
+.tipo-switch-btn:hover { border-color: var(--line-strong); }
+.tipo-switch-btn.active { border-color: var(--primary); background: color-mix(in oklab, var(--primary) 5%, var(--surface)); }
+.tipo-switch-btn.active.entrada { border-color: var(--success); background: color-mix(in oklab, var(--success) 6%, var(--surface)); }
+.tipo-switch-btn.active.saida { border-color: var(--danger); background: color-mix(in oklab, var(--danger) 5%, var(--surface)); }
+
+.tipo-switch-icon {
+  display: inline-flex;
+  width: 28px; height: 28px;
+  border-radius: 6px;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 6px;
+}
+
+.parcelas-preview {
+  margin-top: 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  overflow: hidden;
+}
+.parcelas-preview-head {
+  display: grid;
+  grid-template-columns: 40px 1fr 120px 120px;
+  padding: 10px 14px;
+  background: var(--surface-muted);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ink-muted);
+  font-weight: 600;
+}
+.parcelas-preview-row {
+  display: grid;
+  grid-template-columns: 40px 1fr 120px 120px;
+  align-items: center;
+  padding: 10px 14px;
+  border-top: 1px solid var(--line);
+  font-size: 13px;
+}
+
+/* Valor grande */
+.valor-grande {
+  font-family: inherit;
+  font-size: 32px !important;
+  font-weight: 700 !important;
+  height: 64px !important;
+  padding: 0 16px !important;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ====== T18 — Timeline de diários ====== */
+.diary-tl {
+  display: flex;
+  flex-direction: column;
+}
+.diary-tl-week {
+  display: flex;
+  flex-direction: column;
+}
+.diary-tl-week-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 24px 8px;
+}
+.diary-tl-week-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 600;
+  color: var(--ink-muted);
+  white-space: nowrap;
+}
+.diary-tl-week-line {
+  flex: 1;
+  height: 1px;
+  background: var(--line);
+}
+.diary-tl-week-count {
+  font-size: 11px;
+  color: var(--ink-soft);
+  font-variant-numeric: tabular-nums;
+}
+
+.diary-tl-item {
+  display: grid;
+  grid-template-columns: 96px 1fr;
+  gap: 12px;
+  padding: 4px 24px 0;
+  position: relative;
+}
+.diary-tl-rail {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding-top: 14px;
+}
+/* vertical line connecting dots */
+.diary-tl-rail::before {
+  content: "";
+  position: absolute;
+  left: 70px;
+  top: 0;
+  bottom: -10px;
+  width: 1px;
+  background: var(--line);
+}
+.diary-tl-week:last-child .diary-tl-item:last-child .diary-tl-rail::before {
+  bottom: 50%;
+}
+.diary-tl-date {
+  text-align: right;
+  flex: 1;
+  padding-top: 4px;
+}
+.diary-tl-day {
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+.diary-tl-dow {
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-muted);
+  font-weight: 600;
+  margin-top: 2px;
+}
+.diary-tl-dot {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--white);
+  border: 1.5px solid var(--primary);
+  color: var(--primary);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 1;
+}
+.diary-tl-dot svg { width: 14px; height: 14px; stroke-width: 2; }
+.diary-tl-dot.miss {
+  border-color: var(--warning);
+  color: var(--warning-ink);
+  background: var(--warning-soft);
+}
+
+.diary-tl-card {
+  background: var(--white);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 12px;
+  transition: border-color 0.12s, box-shadow 0.12s;
+}
+.diary-tl-card:hover {
+  border-color: var(--line-strong);
+  box-shadow: var(--shadow-sm);
+}
+.diary-tl-card.miss {
+  background: color-mix(in oklab, var(--warning) 4%, var(--white));
+  border-color: color-mix(in oklab, var(--warning) 25%, var(--line));
+  border-style: dashed;
+}
+.diary-tl-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--line-soft);
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.diary-tl-card.miss .diary-tl-card-head {
+  border-bottom: none;
+}
+.diary-tl-author {
+  font-size: 11.5px;
+  color: var(--ink-muted);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.diary-tl-author svg { width: 12px; height: 12px; }
+
+.diary-clima {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  color: var(--ink);
+  font-weight: 500;
+  background: var(--surface-muted);
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+}
+.diary-clima svg { width: 13px; height: 13px; color: var(--primary); }
+
+.diary-tl-card-body {
+  padding: 12px 14px 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.diary-tl-card.miss .diary-tl-card-body {
+  padding: 0 14px 12px;
+}
+
+.diary-destaque {
+  margin: 0;
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--ink);
+  font-weight: 500;
+}
+
+.diary-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  padding-top: 6px;
+}
+@media (max-width: 1100px) { .diary-stats { grid-template-columns: repeat(2, 1fr); } }
+
+.diary-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.diary-stat-label {
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--ink-muted);
+  font-weight: 600;
+}
+.diary-stat-val {
+  font-size: 13px;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+.diary-stat-val strong {
+  font-weight: 700;
+  font-size: 15px;
+}
+.diary-stat-val .neg { color: var(--danger-ink); }
+.diary-stat-val .muted { color: var(--ink-muted); font-weight: 400; }
+.diary-stat-bar {
+  height: 4px;
+  border-radius: 999px;
+  background: var(--line-soft);
+  overflow: hidden;
+  margin-top: 3px;
+}
+.diary-stat-bar > span {
+  display: block;
+  height: 100%;
+  background: var(--primary);
+  border-radius: 999px;
+}
+
+.diary-tl-card-foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 10px 8px 14px;
+  border-top: 1px solid var(--line-soft);
+}
+.diary-tl-actions {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+.diary-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  color: var(--ink-soft);
+  font-weight: 500;
+  padding: 5px 9px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+  text-decoration: none;
+}
+.diary-link:hover {
+  background: var(--surface-muted);
+  color: var(--primary);
+}
+.diary-link svg { width: 12.5px; height: 12.5px; }
+

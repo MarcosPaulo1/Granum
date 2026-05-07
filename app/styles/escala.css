@@ -1,0 +1,244 @@
+/* escala.css — T14 Escala semanal (grid interativo)
+   Matriz: linhas = trabalhadores, colunas = dias da semana.
+*/
+
+.escala-matrix {
+  display: block;
+  border-top: 1px solid var(--line);
+}
+
+/* HEADER de dias */
+.escala-head {
+  display: grid;
+  grid-template-columns: minmax(260px, 1.8fr) repeat(6, 1fr) minmax(130px, 0.9fr);
+  background: var(--surface-muted);
+  border-bottom: 1px solid var(--line);
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+.escala-head-trab,
+.escala-head-day,
+.escala-head-total {
+  padding: 12px 14px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--ink-muted);
+  font-weight: 600;
+}
+.escala-head-trab { padding-left: 20px; }
+.escala-head-day {
+  text-align: center;
+  position: relative;
+  border-left: 1px solid var(--line);
+}
+.escala-head-day.is-today {
+  background: color-mix(in oklab, var(--primary) 7%, var(--surface-muted));
+  color: var(--primary);
+}
+.escala-head-day .day-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+.escala-head-day .day-date {
+  font-size: 11.5px;
+  color: var(--ink-soft);
+  font-weight: 500;
+  margin-top: 2px;
+  letter-spacing: 0;
+}
+.escala-head-day.is-today .day-date { color: var(--primary); }
+.escala-head-day .day-today-tag {
+  position: absolute;
+  top: 4px; right: 8px;
+  font-size: 9.5px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--primary);
+  color: #fff;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: lowercase;
+}
+.escala-head-total {
+  text-align: right;
+  padding-right: 20px;
+  border-left: 1px solid var(--line);
+}
+
+/* LINHA de trabalhador */
+.escala-row {
+  display: grid;
+  grid-template-columns: minmax(260px, 1.8fr) repeat(6, 1fr) minmax(130px, 0.9fr);
+  border-bottom: 1px solid var(--line);
+  transition: background 0.12s;
+}
+.escala-row:hover { background: color-mix(in oklab, var(--surface-muted) 55%, transparent); }
+.escala-row:last-child { border-bottom: none; }
+
+/* célula info do trabalhador */
+.escala-cell-trab {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 14px 14px 20px;
+  min-width: 0;
+}
+.escala-trab-info { min-width: 0; }
+.escala-trab-name {
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-bottom: 3px;
+}
+.escala-trab-meta {
+  font-size: 11.5px;
+  color: var(--ink-muted);
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.escala-trab-sep { color: var(--line-strong); }
+
+/* CÉLULA interativa */
+.escala-cell {
+  all: unset;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 10px 6px;
+  border-left: 1px solid var(--line);
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s;
+  min-height: 62px;
+  position: relative;
+}
+.escala-cell:hover {
+  background: color-mix(in oklab, var(--primary) 6%, transparent);
+  outline: 2px solid color-mix(in oklab, var(--primary) 25%, transparent);
+  outline-offset: -2px;
+}
+.escala-cell.is-today {
+  background: color-mix(in oklab, var(--primary) 3%, transparent);
+}
+.escala-cell.is-past {
+  background: color-mix(in oklab, var(--ink) 2.5%, transparent);
+}
+.escala-cell .cell-value {
+  font-size: 10.5px;
+  font-weight: 500;
+  color: inherit;
+  opacity: 0.8;
+  letter-spacing: 0;
+}
+.escala-cell svg {
+  width: 14px;
+  height: 14px;
+}
+.escala-cell .cell-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+/* Estados */
+.escala-cell.cell-vazia {
+  color: var(--ink-soft);
+}
+.escala-cell.cell-vazia::before {
+  content: '+';
+  font-size: 18px;
+  font-weight: 300;
+  color: var(--ink-soft);
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+.escala-cell.cell-vazia:hover::before { opacity: 0.7; }
+
+.escala-cell.cell-planejado {
+  background: color-mix(in oklab, var(--info) 12%, var(--surface));
+  color: var(--info-ink);
+}
+.escala-cell.cell-planejado.is-past {
+  background: color-mix(in oklab, var(--info) 8%, var(--surface));
+}
+
+.escala-cell.cell-confirmado {
+  background: color-mix(in oklab, var(--success) 18%, var(--surface));
+  color: var(--success-ink);
+  font-weight: 500;
+}
+.escala-cell.cell-confirmado svg { color: var(--success); }
+
+.escala-cell.cell-cancelado {
+  background: color-mix(in oklab, var(--danger) 8%, var(--surface));
+  color: var(--danger-ink);
+  text-decoration: line-through;
+  opacity: 0.7;
+}
+.escala-cell.cell-cancelado svg { color: var(--danger); }
+.escala-cell.cell-cancelado .cell-value { text-decoration: line-through; }
+
+/* Legend mini-cells */
+.escala-cell-sm {
+  display: inline-block;
+  width: 14px;
+  height: 10px;
+  border-radius: 3px;
+  border: 1px solid var(--line);
+}
+.escala-cell-sm.cell-vazia {
+  background: var(--surface);
+}
+.escala-cell-sm.cell-planejado {
+  background: color-mix(in oklab, var(--info) 20%, var(--surface));
+  border-color: color-mix(in oklab, var(--info) 35%, var(--line));
+}
+.escala-cell-sm.cell-confirmado {
+  background: color-mix(in oklab, var(--success) 28%, var(--surface));
+  border-color: color-mix(in oklab, var(--success) 40%, var(--line));
+}
+.escala-cell-sm.cell-cancelado {
+  background: color-mix(in oklab, var(--danger) 12%, var(--surface));
+  border-color: color-mix(in oklab, var(--danger) 30%, var(--line));
+}
+
+/* Total da linha */
+.escala-cell-total {
+  border-left: 1px solid var(--line);
+  padding: 14px 20px 14px 14px;
+  text-align: right;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-end;
+}
+
+/* Linha de TOTAIS */
+.escala-row.escala-totais {
+  background: color-mix(in oklab, var(--surface-muted) 80%, var(--surface));
+  border-top: 2px solid var(--line-strong);
+  border-bottom: none;
+}
+.escala-row.escala-totais .escala-cell-trab {
+  padding-top: 16px;
+  padding-bottom: 16px;
+}
+.escala-cell-total-dia {
+  border-left: 1px solid var(--line);
+  padding: 16px 8px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}

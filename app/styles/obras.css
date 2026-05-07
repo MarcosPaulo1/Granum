@@ -1,0 +1,228 @@
+/* obras.css — T07 Listagem de obras
+   Sobrescreve o grid de colunas do padrão .list-table para o contexto específico
+   de obras (8 colunas, mais larga), e adiciona os componentes específicos:
+   progress bar, obra cards (visão em grade), avatar de obra.
+*/
+
+/* ====== Grid da tabela de obras (8 colunas) ====== */
+.list-table.list-obras .list-thead,
+.list-table.list-obras .list-row2 {
+  grid-template-columns:
+    minmax(260px, 2.2fr)   /* obra */
+    minmax(160px, 1.1fr)   /* cliente */
+    minmax(170px, 1.1fr)   /* responsável */
+    minmax(180px, 1.2fr)   /* prazo */
+    minmax(180px, 1.2fr)   /* progresso */
+    minmax(120px, 0.8fr)   /* orçamento */
+    minmax(140px, 0.9fr)   /* status */
+    76px;                   /* ações */
+}
+
+/* ====== Avatar específico de obra ====== */
+.avatar-obra {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  flex-shrink: 0;
+}
+.avatar-obra svg {
+  width: 18px;
+  height: 18px;
+}
+
+/* Mini avatar (usado inline ao lado de responsável / cliente) */
+.avatar-xs {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: color-mix(in oklab, var(--primary) 14%, var(--surface-muted));
+  color: var(--primary);
+  font-size: 10.5px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+/* ====== Célula de prazo ====== */
+.list-cell-prazo {
+  min-width: 0;
+}
+.list-cell-prazo .sub {
+  font-size: 11.5px;
+  color: var(--ink-muted);
+  margin-top: 2px;
+}
+.list-cell-prazo .sub svg {
+  width: 12px;
+  height: 12px;
+  vertical-align: -1px;
+  margin-right: 3px;
+}
+
+/* ====== Progress bar da obra ====== */
+.list-cell-progress {
+  min-width: 0;
+}
+.obra-progress {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.obra-progress-track {
+  flex: 1;
+  height: 6px;
+  background: var(--surface-muted);
+  border-radius: 999px;
+  overflow: hidden;
+  min-width: 60px;
+}
+.obra-progress-fill {
+  height: 100%;
+  border-radius: 999px;
+  transition: width 0.2s ease;
+}
+.obra-progress-pct {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink);
+  min-width: 34px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ====== Grade de cards (visão alternativa) ====== */
+.obras-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 14px;
+  padding: 18px;
+  background: var(--surface-muted);
+}
+.obra-card {
+  display: block;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  padding: 16px;
+  cursor: pointer;
+  transition: border-color 0.12s, box-shadow 0.12s, transform 0.12s;
+  text-decoration: none;
+  color: inherit;
+}
+.obra-card:hover {
+  border-color: var(--line-strong);
+  box-shadow: var(--shadow-sm);
+}
+.obra-card.is-danger {
+  border-left: 3px solid var(--danger);
+  padding-left: 14px;
+}
+.obra-card-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+.obra-card-id {
+  font-size: 11px;
+  color: var(--ink-soft);
+  font-variant-numeric: tabular-nums;
+}
+.obra-card-title {
+  font-size: 14.5px;
+  font-weight: 600;
+  color: var(--ink);
+  line-height: 1.35;
+  margin-bottom: 6px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.obra-card-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  color: var(--ink-muted);
+  margin-bottom: 12px;
+}
+.obra-card-progress {
+  margin-bottom: 14px;
+}
+.obra-card-foot {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+.obra-card-foot .sub {
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ink-soft);
+  margin-bottom: 3px;
+  font-weight: 600;
+}
+.obra-card-foot .em {
+  font-size: 12.5px;
+  color: var(--ink);
+  font-weight: 500;
+}
+
+/* ====== KPI tone variants (confirma que existem — se já existirem em styles.css/listagem.css, sem efeito) ====== */
+.list-kpi.tone-info    { border-left: 3px solid var(--info); }
+.list-kpi.tone-warning { border-left: 3px solid var(--warning); }
+.list-kpi.tone-danger  { border-left: 3px solid var(--danger); }
+.list-kpi.tone-success { border-left: 3px solid var(--success); }
+
+/* ====== Tabela de tarefas (T10 lista) ====== */
+.list-table.list-tarefas .list-thead,
+.list-table.list-tarefas .list-row2 {
+  grid-template-columns:
+    minmax(260px, 2.2fr)   /* tarefa */
+    minmax(110px, 0.8fr)   /* etapa */
+    minmax(110px, 0.8fr)   /* período */
+    minmax(160px, 1.1fr)   /* responsável */
+    minmax(170px, 1.2fr)   /* progresso */
+    minmax(120px, 0.8fr)   /* orçamento */
+    minmax(130px, 0.9fr)   /* status */
+    76px;                   /* ações */
+}
+.task-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 32px;
+  height: 32px;
+  padding: 0 6px;
+  border-radius: 6px;
+  background: var(--surface-muted);
+  color: var(--ink-soft);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  flex-shrink: 0;
+}
+
+/* Responsive */
+@media (max-width: 1400px) {
+  .list-table.list-obras .list-thead,
+  .list-table.list-obras .list-row2 {
+    grid-template-columns:
+      minmax(220px, 2fr)
+      minmax(140px, 1fr)
+      minmax(150px, 1fr)
+      minmax(160px, 1fr)
+      minmax(160px, 1fr)
+      minmax(110px, 0.7fr)
+      minmax(120px, 0.7fr)
+      60px;
+  }
+}
