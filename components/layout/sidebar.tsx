@@ -164,19 +164,19 @@ export function Sidebar({ role, userName, roleName, onSignOut }: SidebarProps) {
 
   return (
     <aside className="flex h-full w-64 flex-col bg-sidebar text-sidebar-foreground">
-      <div className="flex h-16 items-center gap-2 border-b border-sidebar-border px-5">
+      <div className="flex h-14 shrink-0 items-center gap-2 border-b border-sidebar-border px-5">
         <Image
           src="/granum-logo-branco.png"
           alt="Granum"
           width={128}
           height={32}
-          className="h-7 w-auto"
+          className="h-6 w-auto"
           priority
         />
       </div>
 
-      <nav className="flex-1 overflow-y-auto p-3">
-        <ul className="space-y-0.5">
+      <nav className="flex-1 min-h-0 overflow-hidden px-2 py-2">
+        <ul className="space-y-px">
           {filteredItems.map((item) => (
             <li key={item.href + item.label}>
               {item.children ? (
@@ -189,16 +189,16 @@ export function Sidebar({ role, userName, roleName, onSignOut }: SidebarProps) {
         </ul>
       </nav>
 
-      <div className="border-t border-sidebar-border p-4">
-        <div className="mb-2">
-          <p className="text-sm font-medium truncate text-sidebar-foreground">{userName}</p>
-          <p className="text-xs text-sidebar-foreground/60">{roleName}</p>
+      <div className="shrink-0 border-t border-sidebar-border px-4 py-3">
+        <div className="mb-1.5">
+          <p className="text-[13px] font-medium truncate text-sidebar-foreground leading-tight">{userName}</p>
+          <p className="text-[11px] text-sidebar-foreground/60 leading-tight">{roleName}</p>
         </div>
         <button
           onClick={onSignOut}
-          className="flex items-center gap-2 text-sm text-sidebar-foreground/70 hover:text-sidebar-foreground transition-colors"
+          className="flex items-center gap-1.5 text-[12px] text-sidebar-foreground/70 hover:text-sidebar-foreground transition-colors"
         >
-          <LogOut className="h-3.5 w-3.5" />
+          <LogOut className="h-3 w-3" />
           Sair
         </button>
       </div>
@@ -214,7 +214,7 @@ function SidebarLink({ item, pathname }: { item: NavItem; pathname: string }) {
     <Link
       href={item.href}
       className={cn(
-        "relative flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors",
+        "relative flex items-center gap-2.5 rounded-md px-3 py-1.5 text-[13px] transition-colors",
         isActive
           ? "bg-sidebar-accent text-sidebar-foreground font-medium"
           : "text-sidebar-foreground/75 hover:bg-sidebar-accent hover:text-sidebar-foreground"
@@ -223,10 +223,10 @@ function SidebarLink({ item, pathname }: { item: NavItem; pathname: string }) {
       {isActive && (
         <span
           aria-hidden
-          className="absolute left-0 top-1.5 bottom-1.5 w-0.5 rounded-r bg-sidebar-primary"
+          className="absolute left-0 top-1 bottom-1 w-0.5 rounded-r bg-sidebar-primary"
         />
       )}
-      <Icon className="h-4 w-4 shrink-0" />
+      <Icon className="h-3.5 w-3.5 shrink-0" />
       {item.label}
     </Link>
   )
@@ -247,19 +247,19 @@ function SidebarGroup({
   const Icon = item.icon
 
   return (
-    <div className="mt-2">
+    <div className="mt-1.5">
       <div
         className={cn(
-          "flex items-center gap-3 px-3 py-1.5 text-[11px] uppercase tracking-wider font-semibold",
+          "flex items-center gap-2 px-3 py-1 text-[10.5px] uppercase tracking-wider font-semibold",
           isGroupActive
             ? "text-sidebar-foreground/90"
             : "text-sidebar-foreground/50"
         )}
       >
-        <Icon className="h-3.5 w-3.5 shrink-0" />
+        <Icon className="h-3 w-3 shrink-0" />
         {item.label}
       </div>
-      <ul className="space-y-0.5">
+      <ul className="space-y-px">
         {item.children
           ?.filter((child) => role && child.roles.includes(role))
           .map((child) => (
