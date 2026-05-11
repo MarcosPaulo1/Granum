@@ -3,13 +3,12 @@
 import Link from "next/link"
 import { useEffect, useState } from "react"
 import { useParams } from "next/navigation"
-import { ArrowLeft } from "lucide-react"
 
 import { EquipeTab } from "@/components/obra-tabs/equipe-tab"
-import { PageHeader } from "@/components/shared/page-header"
+import { Icon } from "@/components/granum/icon"
 import { createClient } from "@/lib/supabase/client"
 
-export default function EscalaPage() {
+export default function EquipePage() {
   const params = useParams()
   const obraId = Number(params.id)
   const [obraNome, setObraNome] = useState("")
@@ -27,24 +26,28 @@ export default function EscalaPage() {
   }, [obraId])
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-2 text-[12.5px] text-muted-foreground">
-        <Link
-          href={`/obras/${obraId}`}
-          className="inline-flex items-center gap-1 hover:text-foreground"
-        >
-          <ArrowLeft className="size-3.5" />
-          {obraNome || "Obra"}
-        </Link>
+    <>
+      <div className="page-head">
+        <div className="page-head-top">
+          <div className="page-head-title">
+            <div className="obra-id">
+              <Link
+                href={`/obras/${obraId}`}
+                style={{ color: "inherit", display: "inline-flex", gap: 4, alignItems: "center" }}
+              >
+                <Icon name="chevronLeft" style={{ width: 12, height: 12 }} />
+                {obraNome || "Obra"}
+              </Link>
+              {" · Equipe"}
+            </div>
+            <h1>Escala da equipe</h1>
+            <div className="subtitle">
+              Alocação semanal dos trabalhadores na obra
+            </div>
+          </div>
+        </div>
       </div>
-
-      <PageHeader
-        eyebrow="Obra · Planejamento"
-        title="Escala semanal"
-        subtitle={obraNome}
-      />
-
       <EquipeTab obraId={obraId} />
-    </div>
+    </>
   )
 }

@@ -1,18 +1,14 @@
 "use client"
 
-import { useCallback, useEffect, useState } from "react"
+// Port literal de granum-design/tab-equipe.jsx
+
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { addDays, format, startOfWeek } from "date-fns"
 import { ptBR } from "date-fns/locale"
-import { ChevronLeft, ChevronRight } from "lucide-react"
 import { toast } from "sonner"
 
-import { Avatar } from "@/components/shared/avatar"
-import { CategoryChip } from "@/components/shared/category-chip"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
+import { Icon } from "@/components/granum/icon"
 import { createClient } from "@/lib/supabase/client"
-import { cn } from "@/lib/utils"
-import { formatBRL } from "@/lib/utils/format"
 
 interface Trabalhador {
   id_trabalhador: number
@@ -20,6 +16,7 @@ interface Trabalhador {
   especialidade: string | null
   id_contrato: number
   valor_acordado: number
+  vinculo: string
 }
 interface Escala {
   id_escala: number
@@ -29,11 +26,65 @@ interface Escala {
   status: string
 }
 
+const CELL_STYLE: Record<
+  string,
+  { bg: string; fg: string; border: string; label: string; title: string }
+> = {
+  c: {
+    bg: "var(--success-soft)",
+    fg: "var(--success)",
+    border: "var(--success)",
+    label: "✓",
+    title: "Presente / confirmado",
+  },
+  p: {
+    bg: "transparent",
+    fg: "var(--info)",
+    border: "var(--info-soft)",
+    label: "●",
+    title: "Escalado / planejado",
+  },
+  f: {
+    bg: "var(--danger)",
+    fg: "var(--danger-on, #fff)",
+    border: "var(--danger)",
+    label: "F",
+    title: "Falta não justificada",
+  },
+  m: {
+    bg: "var(--warning-soft)",
+    fg: "var(--warning-ink)",
+    border: "var(--warning)",
+    label: "½",
+    title: "Meio turno",
+  },
+  j: {
+    bg: "var(--warning-soft)",
+    fg: "var(--warning-ink)",
+    border: "var(--warning-soft)",
+    label: "J",
+    title: "Falta justificada",
+  },
+  "": {
+    bg: "transparent",
+    fg: "var(--ink-soft)",
+    border: "transparent",
+    label: "—",
+    title: "Folga",
+  },
+}
+
+function fmtBRL(v: number): string {
+  if (!v) return "R$ 0"
+  if (v >= 1_000_000)
+    return "R$ " + (v / 1_000_000).toFixed(2).replace(".", ",") + " mi"
+  if (v >= 1000) return "R$ " + Math.round(v / 1000) + " mil"
+  return "R$ " + v
+}
+
 interface EquipeTabProps {
   obraId: number
 }
-
-const DAY_LABELS = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"]
 
 export function EquipeTab({ obraId }: EquipeTabProps) {
   const [weekStart, setWeekStart] = useState(() =>
@@ -43,52 +94,63 @@ export function EquipeTab({ obraId }: EquipeTabProps) {
   const [escalas, setEscalas] = useState<Escala[]>([])
   const [isLoading, setIsLoading] = useState(true)
 
-  const days = Array.from({ length: 6 }, (_, i) => addDays(weekStart, i))
+  const dias = useMemo(
+    () =>
+      Array.from({ length: 6 }, (_, i) => {
+        const d = addDays(weekStart, i)
+        return {
+          lbl: format(d, "EEE", { locale: ptBR }).replace(".", ""),
+          num: format(d, "dd"),
+          hoje: format(d, "yyyy-MM-dd") === format(new Date(), "yyyy-MM-dd"),
+          date: format(d, "yyyy-MM-dd"),
+        }
+      }),
+    [weekStart]
+  )
 
   const load = useCallback(async () => {
     setIsLoading(true)
     const supabase = createClient()
-
     const { data: cts } = await supabase
       .from("contrato_trabalho")
-      .select("id_contrato, id_trabalhador, valor_acordado")
+      .select("id_contrato, id_trabalhador, valor_acordado, tipo_pagamento")
       .eq("id_obra", obraId)
       .eq("status", "ativo")
-    const contratosList = (cts ?? []) as {
+    const ctList = (cts ?? []) as {
       id_contrato: number
       id_trabalhador: number
       valor_acordado: number
+      tipo_pagamento: string
     }[]
 
-    const trabIds = Array.from(
-      new Set(contratosList.map((c) => c.id_trabalhador))
-    )
-    if (trabIds.length > 0) {
-      const { data: trabs } = await supabase
-        .from("trabalhador")
-        .select("id_trabalhador, nome, especialidade")
-        .in("id_trabalhador", trabIds)
-      setTrabalhadores(
-        (
-          (trabs ?? []) as {
-            id_trabalhador: number
-            nome: string
-            especialidade: string | null
-          }[]
-        ).map((t) => {
-          const ct = contratosList.find(
-            (c) => c.id_trabalhador === t.id_trabalhador
-          )!
-          return {
-            ...t,
-            id_contrato: ct.id_contrato,
-            valor_acordado: ct.valor_acordado,
-          }
-        })
-      )
-    } else {
+    if (ctList.length === 0) {
       setTrabalhadores([])
+      setEscalas([])
+      setIsLoading(false)
+      return
     }
+
+    const trabIds = Array.from(new Set(ctList.map((c) => c.id_trabalhador)))
+    const { data: trabs } = await supabase
+      .from("trabalhador")
+      .select("id_trabalhador, nome, especialidade, tipo_vinculo")
+      .in("id_trabalhador", trabIds)
+    setTrabalhadores(
+      ((trabs ?? []) as {
+        id_trabalhador: number
+        nome: string
+        especialidade: string | null
+        tipo_vinculo: string | null
+      }[]).map((t) => {
+        const ct = ctList.find((c) => c.id_trabalhador === t.id_trabalhador)!
+        return {
+          ...t,
+          vinculo: t.tipo_vinculo ?? ct.tipo_pagamento ?? "diaria",
+          id_contrato: ct.id_contrato,
+          valor_acordado: ct.valor_acordado,
+        }
+      })
+    )
 
     const from = format(weekStart, "yyyy-MM-dd")
     const to = format(addDays(weekStart, 5), "yyyy-MM-dd")
@@ -106,236 +168,359 @@ export function EquipeTab({ obraId }: EquipeTabProps) {
     load()
   }, [load])
 
-  function getEscala(trabId: number, day: Date): Escala | undefined {
-    const dateStr = format(day, "yyyy-MM-dd")
+  function getEscala(trabId: number, day: string): Escala | undefined {
     return escalas.find(
-      (e) => e.id_trabalhador === trabId && e.data_prevista === dateStr
+      (e) => e.id_trabalhador === trabId && e.data_prevista === day
     )
   }
 
-  async function toggleEscala(trab: Trabalhador, day: Date) {
+  function dayStatus(trabId: number, day: string): keyof typeof CELL_STYLE {
+    const e = getEscala(trabId, day)
+    if (!e) return ""
+    if (e.status === "cancelado") return ""
+    if (e.status === "confirmado") return "c"
+    return "p"
+  }
+
+  async function toggleEscala(trab: Trabalhador, day: string) {
     const supabase = createClient()
-    const dateStr = format(day, "yyyy-MM-dd")
     const existing = getEscala(trab.id_trabalhador, day)
-
     if (existing) {
-      if (existing.status === "cancelado") {
-        await supabase
-          .from("escala")
-          .update({ status: "planejado" })
-          .eq("id_escala", existing.id_escala)
-      } else {
-        await supabase
-          .from("escala")
-          .update({ status: "cancelado" })
-          .eq("id_escala", existing.id_escala)
-      }
-    } else {
-      const { data: conflicts } = await supabase
+      await supabase
         .from("escala")
-        .select("id_obra")
-        .eq("id_trabalhador", trab.id_trabalhador)
-        .eq("data_prevista", dateStr)
-        .eq("turno", "integral")
-        .neq("status", "cancelado")
-        .neq("id_obra", obraId)
-
-      if (conflicts && conflicts.length > 0) {
-        toast.error("Trabalhador já escalado em outra obra neste dia/turno")
-        return
-      }
-
+        .update({
+          status: existing.status === "cancelado" ? "planejado" : "cancelado",
+        })
+        .eq("id_escala", existing.id_escala)
+    } else {
       const { error } = await supabase.from("escala").insert({
         id_obra: obraId,
         id_trabalhador: trab.id_trabalhador,
         id_contrato: trab.id_contrato,
-        data_prevista: dateStr,
+        data_prevista: day,
         turno: "integral",
         status: "planejado",
       })
       if (error) {
-        toast.error("Erro ao escalar: " + error.message)
+        toast.error("Erro: " + error.message)
         return
       }
     }
     load()
   }
 
-  function cellStyle(escala: Escala | undefined): string {
-    if (!escala) return "bg-muted/40 text-muted-foreground/60 hover:bg-muted"
-    if (escala.status === "confirmado")
-      return "bg-[var(--success-soft)] text-[var(--success-ink)] border-[var(--success)]/30"
-    if (escala.status === "cancelado")
-      return "bg-muted text-muted-foreground line-through"
-    return "bg-[var(--info-soft)] text-[var(--info-ink)] border-[var(--info)]/30"
-  }
-
-  function custoDia(day: Date): number {
-    const dateStr = format(day, "yyyy-MM-dd")
-    return escalas
-      .filter((e) => e.data_prevista === dateStr && e.status !== "cancelado")
-      .reduce((sum, e) => {
-        const trab = trabalhadores.find(
-          (t) => t.id_trabalhador === e.id_trabalhador
-        )
-        return sum + (trab?.valor_acordado ?? 0)
-      }, 0)
-  }
-
-  const custoSemana = days.reduce((a, d) => a + custoDia(d), 0)
+  const totalPresencas = trabalhadores.reduce(
+    (s, t) =>
+      s + dias.filter((d) => dayStatus(t.id_trabalhador, d.date) === "c").length,
+    0
+  )
+  const totalPlanejadas = trabalhadores.reduce(
+    (s, t) =>
+      s + dias.filter((d) => dayStatus(t.id_trabalhador, d.date) === "p").length,
+    0
+  )
+  const dayTotals = dias.map((d) =>
+    trabalhadores.reduce((sum, t) => {
+      const s = dayStatus(t.id_trabalhador, d.date)
+      if (s === "c" || s === "p") return sum + t.valor_acordado
+      return sum
+    }, 0)
+  )
+  const weekTotal = dayTotals.reduce((a, v) => a + v, 0)
 
   return (
-    <div className="space-y-4">
-      <Card>
-        <CardContent className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h3 className="text-[15px] font-semibold text-foreground">
-              Escala semanal
-            </h3>
-            <p className="text-[12px] text-muted-foreground tabular-nums">
-              {format(weekStart, "dd/MM", { locale: ptBR })} →{" "}
+    <>
+      {/* Controls + navegação */}
+      <div className="card" style={{ marginBottom: 14 }}>
+        <div
+          className="card-body"
+          style={{
+            padding: 14,
+            display: "flex",
+            gap: 12,
+            alignItems: "center",
+            flexWrap: "wrap",
+          }}
+        >
+          <button
+            type="button"
+            className="icon-btn"
+            style={{ border: "1px solid var(--line-strong)" }}
+            onClick={() => setWeekStart(addDays(weekStart, -7))}
+          >
+            <Icon name="chevronLeft" />
+          </button>
+          <div style={{ display: "flex", flexDirection: "column" }}>
+            <div style={{ fontSize: 14, fontWeight: 500 }}>
+              {format(weekStart, "dd/MM", { locale: ptBR })} —{" "}
               {format(addDays(weekStart, 5), "dd/MM/yyyy", { locale: ptBR })}
-              {" · "}
-              <span className="mono font-medium text-foreground">
-                {formatBRL(custoSemana)}
-              </span>{" "}
-              custo previsto
-            </p>
+            </div>
+            <div style={{ fontSize: 11.5, color: "var(--ink-muted)" }}>
+              {trabalhadores.length} trabalhador
+              {trabalhadores.length !== 1 ? "es" : ""} com contrato ativo
+            </div>
           </div>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="icon-sm"
-              onClick={() => setWeekStart(addDays(weekStart, -7))}
-              aria-label="Semana anterior"
-            >
-              <ChevronLeft />
-            </Button>
-            <Button
-              variant="outline"
-              size="icon-sm"
-              onClick={() => setWeekStart(addDays(weekStart, 7))}
-              aria-label="Próxima semana"
-            >
-              <ChevronRight />
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+          <button
+            type="button"
+            className="icon-btn"
+            style={{ border: "1px solid var(--line-strong)" }}
+            onClick={() => setWeekStart(addDays(weekStart, 7))}
+          >
+            <Icon name="chevronRight" />
+          </button>
 
-      {isLoading ? (
-        <Card>
-          <CardContent className="py-12 text-center text-sm text-muted-foreground">
-            Carregando equipe…
-          </CardContent>
-        </Card>
-      ) : trabalhadores.length === 0 ? (
-        <Card>
-          <CardContent className="py-16 text-center text-sm text-muted-foreground">
-            Nenhum trabalhador com contrato ativo nesta obra.
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="overflow-hidden rounded-md border border-border bg-card">
-          <div className="overflow-x-auto">
-            <table className="min-w-full">
-              <thead>
-                <tr className="border-b border-border bg-muted/60 text-[11px] uppercase tracking-wider text-muted-foreground">
-                  <th className="sticky left-0 z-10 min-w-[220px] bg-muted/60 px-5 py-2.5 text-left font-semibold">
-                    Trabalhador
-                  </th>
-                  <th className="px-3 py-2.5 text-left font-semibold">Valor</th>
-                  {days.map((d, i) => (
-                    <th
-                      key={d.toISOString()}
-                      className="min-w-[90px] px-3 py-2.5 text-center font-semibold"
-                    >
-                      <div>{DAY_LABELS[i]}</div>
-                      <div className="text-[10px] font-normal text-muted-foreground/70 tabular-nums">
-                        {format(d, "dd/MM")}
-                      </div>
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {trabalhadores.map((t) => (
-                  <tr
-                    key={t.id_trabalhador}
-                    className="border-b border-border hover:bg-muted/20"
+          <div
+            style={{
+              width: 1,
+              height: 32,
+              background: "var(--line)",
+              marginLeft: 8,
+              marginRight: 4,
+            }}
+          />
+
+          <div
+            style={{
+              display: "flex",
+              gap: 12,
+              alignItems: "center",
+              fontSize: 11.5,
+              color: "var(--ink-muted)",
+              flexWrap: "wrap",
+            }}
+          >
+            {[
+              { k: "c", l: "Presente" },
+              { k: "p", l: "Escalado" },
+              { k: "j", l: "Justificada" },
+              { k: "f", l: "Falta" },
+            ].map(({ k, l }) => {
+              const s = CELL_STYLE[k]
+              return (
+                <span
+                  key={k}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 6,
+                  }}
+                >
+                  <span
+                    style={{
+                      width: 22,
+                      height: 20,
+                      borderRadius: 4,
+                      background: s.bg,
+                      color: s.fg,
+                      border: "1px solid " + s.border,
+                      display: "inline-flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      fontSize: 10.5,
+                      fontWeight: 600,
+                    }}
                   >
-                    <td className="sticky left-0 z-10 bg-card px-5 py-3">
-                      <div className="flex items-center gap-3">
-                        <Avatar variant="pf" name={t.nome} size="sm" />
-                        <div className="min-w-0">
-                          <div className="truncate text-[13px] font-medium text-foreground">
-                            {t.nome}
-                          </div>
-                          <div className="text-[11.5px] text-muted-foreground">
-                            {t.especialidade ?? "—"}
-                          </div>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-3 py-3">
-                      <span className="mono text-[12px] tabular-nums text-foreground">
-                        {formatBRL(t.valor_acordado)}
-                      </span>
-                    </td>
-                    {days.map((d) => {
-                      const esc = getEscala(t.id_trabalhador, d)
-                      return (
-                        <td key={d.toISOString()} className="p-1.5 text-center">
-                          <button
-                            onClick={() => toggleEscala(t, d)}
-                            className={cn(
-                              "flex h-9 w-full items-center justify-center rounded border text-[11px] font-medium transition-colors",
-                              cellStyle(esc)
-                            )}
-                            title={esc ? esc.status : "Sem escala"}
-                          >
-                            {esc
-                              ? esc.status === "cancelado"
-                                ? "✕"
-                                : esc.status === "confirmado"
-                                  ? "✓"
-                                  : "·"
-                              : ""}
-                          </button>
-                        </td>
-                      )
-                    })}
-                  </tr>
-                ))}
-                <tr className="border-t-2 border-border bg-muted/40 font-semibold">
-                  <td className="sticky left-0 z-10 bg-muted/40 px-5 py-3 text-[13px] text-foreground">
-                    Custo do dia
-                  </td>
-                  <td className="px-3 py-3"></td>
-                  {days.map((d) => (
-                    <td
-                      key={d.toISOString()}
-                      className="px-3 py-3 text-center"
-                    >
-                      <span className="mono text-[12px] font-semibold tabular-nums text-foreground">
-                        {formatBRL(custoDia(d))}
-                      </span>
-                    </td>
-                  ))}
-                </tr>
-              </tbody>
-            </table>
+                    {s.label}
+                  </span>
+                  {l}
+                </span>
+              )
+            })}
           </div>
-          <div className="flex flex-wrap items-center gap-3 border-t border-border px-5 py-3 text-[11.5px] text-muted-foreground">
-            <span className="font-semibold uppercase tracking-wider">
-              Legenda:
-            </span>
-            <CategoryChip tone="info">Planejado</CategoryChip>
-            <CategoryChip tone="success">Confirmado</CategoryChip>
-            <CategoryChip tone="neutral">Cancelado</CategoryChip>
+
+          <button
+            type="button"
+            className="btn btn-secondary"
+            style={{ marginLeft: "auto" }}
+            disabled
+          >
+            <Icon name="download" />
+            Exportar
+          </button>
+        </div>
+      </div>
+
+      {/* KPIs */}
+      <div
+        className="list-kpis"
+        style={{ gridTemplateColumns: "repeat(4, 1fr)", marginBottom: 14 }}
+      >
+        <div className="list-kpi tone-success">
+          <div className="list-kpi-head">
+            <div className="list-kpi-label">Presenças confirmadas</div>
+            <div className="kpi-icon">
+              <Icon name="check" />
+            </div>
+          </div>
+          <div className="list-kpi-value">{totalPresencas}</div>
+          <div className="list-kpi-sub">
+            <Icon name="activity" />
+            Dias passados
           </div>
         </div>
-      )}
-    </div>
+        <div className="list-kpi tone-info">
+          <div className="list-kpi-head">
+            <div className="list-kpi-label">Dias escalados</div>
+            <div className="kpi-icon">
+              <Icon name="calendar" />
+            </div>
+          </div>
+          <div className="list-kpi-value">{totalPlanejadas}</div>
+          <div className="list-kpi-sub">
+            <Icon name="activity" />A confirmar
+          </div>
+        </div>
+        <div className="list-kpi">
+          <div className="list-kpi-label">Custo previsto</div>
+          <div className="list-kpi-value mono fin-neg">
+            {fmtBRL(weekTotal)}
+          </div>
+          <div className="list-kpi-sub">
+            <Icon name="dollar" />
+            Total da semana
+          </div>
+        </div>
+        <div className="list-kpi">
+          <div className="list-kpi-label">Trabalhadores ativos</div>
+          <div className="list-kpi-value">{trabalhadores.length}</div>
+          <div className="list-kpi-sub">
+            <Icon name="users" />
+            Com contrato em vigor
+          </div>
+        </div>
+      </div>
+
+      {/* Grid de escala */}
+      <div className="card">
+        <div className="card-head">
+          <h3>
+            <Icon name="users" />
+            Escala semanal
+          </h3>
+          <div
+            style={{ display: "flex", alignItems: "center", gap: 12 }}
+          >
+            <div
+              style={{ fontSize: 11.5, color: "var(--ink-muted)" }}
+            >
+              Custo previsto da semana
+            </div>
+            <div
+              className="mono"
+              style={{
+                fontSize: 17,
+                fontWeight: 600,
+                color: "var(--danger)",
+              }}
+            >
+              {fmtBRL(weekTotal)}
+            </div>
+          </div>
+        </div>
+        {isLoading ? (
+          <div
+            style={{
+              padding: "60px 24px",
+              textAlign: "center",
+              color: "var(--ink-muted)",
+              fontSize: 13.5,
+            }}
+          >
+            Carregando…
+          </div>
+        ) : trabalhadores.length === 0 ? (
+          <div
+            style={{
+              padding: "60px 24px",
+              textAlign: "center",
+              color: "var(--ink-muted)",
+              fontSize: 13.5,
+            }}
+          >
+            Nenhum trabalhador com contrato ativo nesta obra.
+          </div>
+        ) : (
+          <div className="escala-grid">
+            <div className="escala-head">
+              <div className="escala-cell-trab">Trabalhador</div>
+              {dias.map((d, i) => (
+                <div
+                  key={i}
+                  className={"escala-cell-day" + (d.hoje ? " hoje" : "")}
+                >
+                  <div className="dia">{d.lbl}</div>
+                  <div className="num">{d.num}</div>
+                </div>
+              ))}
+              <div className="escala-cell-total">Semana</div>
+            </div>
+            {trabalhadores.map((t) => {
+              const wk = dias.reduce((s, d) => {
+                const st = dayStatus(t.id_trabalhador, d.date)
+                if (st === "c" || st === "p") return s + t.valor_acordado
+                return s
+              }, 0)
+              return (
+                <div className="escala-row" key={t.id_trabalhador}>
+                  <div className="escala-cell-trab">
+                    <div className="nm">{t.nome}</div>
+                    <div className="sub">
+                      {t.especialidade ?? "—"} ·{" "}
+                      <span className="mono">{fmtBRL(t.valor_acordado)}</span>
+                      /dia
+                    </div>
+                  </div>
+                  {dias.map((d, i) => {
+                    const status = dayStatus(t.id_trabalhador, d.date)
+                    const s = CELL_STYLE[status]
+                    return (
+                      <button
+                        key={i}
+                        type="button"
+                        title={s.title}
+                        onClick={() => toggleEscala(t, d.date)}
+                        className="escala-cell-day"
+                        style={{
+                          background: s.bg,
+                          color: s.fg,
+                          border: "1px solid " + s.border,
+                          cursor: "pointer",
+                          fontWeight: 600,
+                          fontSize: 13,
+                        }}
+                      >
+                        {s.label}
+                      </button>
+                    )
+                  })}
+                  <div
+                    className="escala-cell-total mono"
+                    style={{ color: "var(--danger)" }}
+                  >
+                    {fmtBRL(wk)}
+                  </div>
+                </div>
+              )
+            })}
+            <div className="escala-row escala-totals">
+              <div className="escala-cell-trab">
+                <strong>Total do dia</strong>
+              </div>
+              {dayTotals.map((v, i) => (
+                <div key={i} className="escala-cell-day mono fin-neg">
+                  {fmtBRL(v)}
+                </div>
+              ))}
+              <div
+                className="escala-cell-total mono fin-neg"
+                style={{ fontWeight: 600 }}
+              >
+                {fmtBRL(weekTotal)}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </>
   )
 }

@@ -3,10 +3,9 @@
 import Link from "next/link"
 import { useEffect, useState } from "react"
 import { useParams } from "next/navigation"
-import { ArrowLeft } from "lucide-react"
 
 import { DocumentosTab } from "@/components/obra-tabs/documentos-tab"
-import { PageHeader } from "@/components/shared/page-header"
+import { Icon } from "@/components/granum/icon"
 import { createClient } from "@/lib/supabase/client"
 
 export default function DocumentosPage() {
@@ -27,24 +26,28 @@ export default function DocumentosPage() {
   }, [obraId])
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-2 text-[12.5px] text-muted-foreground">
-        <Link
-          href={`/obras/${obraId}`}
-          className="inline-flex items-center gap-1 hover:text-foreground"
-        >
-          <ArrowLeft className="size-3.5" />
-          {obraNome || "Obra"}
-        </Link>
+    <>
+      <div className="page-head">
+        <div className="page-head-top">
+          <div className="page-head-title">
+            <div className="obra-id">
+              <Link
+                href={`/obras/${obraId}`}
+                style={{ color: "inherit", display: "inline-flex", gap: 4, alignItems: "center" }}
+              >
+                <Icon name="chevronLeft" style={{ width: 12, height: 12 }} />
+                {obraNome || "Obra"}
+              </Link>
+              {" · Documentos"}
+            </div>
+            <h1>Documentos</h1>
+            <div className="subtitle">
+              Projetos, fotos, contratos e arquivos da obra
+            </div>
+          </div>
+        </div>
       </div>
-
-      <PageHeader
-        eyebrow="Obra · Documentação"
-        title="Documentos"
-        subtitle={obraNome}
-      />
-
       <DocumentosTab obraId={obraId} />
-    </div>
+    </>
   )
 }
