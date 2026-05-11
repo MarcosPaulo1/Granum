@@ -2,16 +2,12 @@
 
 import { useCallback, useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
-import { Check, FileText, Plus, X } from "lucide-react"
 import { toast } from "sonner"
 
-import { CategoryChip } from "@/components/shared/category-chip"
+import { Icon } from "@/components/granum/icon"
 import { ConfirmDialog } from "@/components/shared/confirm-dialog"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
 import { DIARIO_ORIGEM, DIARIO_REVISAO } from "@/lib/constants"
 import { createClient } from "@/lib/supabase/client"
-import { cn } from "@/lib/utils"
 import { formatDate, truncate } from "@/lib/utils/format"
 
 interface Diario {
@@ -23,27 +19,29 @@ interface Diario {
   id_responsavel: number | null
 }
 
-interface DiariosTabProps {
+const REVISAO_META: Record<string, { cls: string; label: string }> = {
+  aprovado: { cls: "badge-success", label: "Aprovado" },
+  pendente: { cls: "badge-warning", label: "Pendente" },
+  rejeitado: { cls: "badge-danger", label: "Rejeitado" },
+}
+
+const ORIGEM_META: Record<string, { cls: string; label: string }> = {
+  manual: { cls: "badge-neutral", label: "Manual" },
+  whatsapp: {
+    cls: "",
+    label: "WhatsApp",
+  },
+  plaud: { cls: "", label: "Plaud" },
+  ia: { cls: "", label: "IA" },
+}
+
+export function DiariosTab({
+  obraId,
+  role,
+}: {
   obraId: number
   role: string | null
-}
-
-const REVISAO_TONE: Record<
-  string,
-  "success" | "warning" | "danger" | "neutral"
-> = {
-  aprovado: "success",
-  pendente: "warning",
-  rejeitado: "danger",
-}
-
-const ORIGEM_TONE: Record<string, "primary" | "info" | "neutral"> = {
-  manual: "neutral",
-  ia: "primary",
-  whatsapp: "info",
-}
-
-export function DiariosTab({ obraId, role }: DiariosTabProps) {
+}) {
   const router = useRouter()
   const [diarios, setDiarios] = useState<Diario[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -75,131 +73,160 @@ export function DiariosTab({ obraId, role }: DiariosTabProps) {
       .update({ status_revisao: status })
       .eq("id_diario", id)
     if (error) {
-      toast.error("Erro ao atualizar diário: " + error.message)
+      toast.error("Erro: " + error.message)
       return
     }
     toast.success(`Diário ${status}`)
     load()
   }
 
-  return (
-    <div className="space-y-4">
-      <Card>
-        <CardContent className="flex items-center justify-between py-4">
-          <div>
-            <h3 className="text-[15px] font-semibold text-foreground">
-              Diários de obra
-            </h3>
-            <p className="text-[12px] text-muted-foreground">
-              {diarios.length} diário{diarios.length === 1 ? "" : "s"} ·{" "}
-              {diarios.filter((d) => d.status_revisao === "pendente").length}{" "}
-              pendente
-              {diarios.filter((d) => d.status_revisao === "pendente")
-                .length === 1
-                ? ""
-                : "s"}{" "}
-              de revisão
-            </p>
-          </div>
-          <Button
-            size="sm"
-            onClick={() => router.push(`/obras/${obraId}/diarios/novo`)}
-          >
-            <Plus data-icon="inline-start" />
-            Novo diário
-          </Button>
-        </CardContent>
-      </Card>
+  const pendentes = diarios.filter(
+    (d) => d.status_revisao === "pendente"
+  ).length
 
-      {isLoading ? (
-        <Card>
-          <CardContent className="py-12 text-center text-sm text-muted-foreground">
-            Carregando diários…
-          </CardContent>
-        </Card>
-      ) : diarios.length === 0 ? (
-        <Card>
-          <CardContent className="flex flex-col items-center gap-3 py-16 text-center">
-            <FileText className="size-8 text-muted-foreground/60" />
-            <p className="text-sm text-muted-foreground">
-              Nenhum diário registrado ainda.
-            </p>
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="space-y-2">
-          {diarios.map((d) => {
-            const revisaoMeta = DIARIO_REVISAO[
-              d.status_revisao as keyof typeof DIARIO_REVISAO
-            ] as { label: string } | undefined
-            const origemMeta = DIARIO_ORIGEM[
-              d.origem as keyof typeof DIARIO_ORIGEM
-            ] as { label: string } | undefined
-            return (
-              <Card
-                key={d.id_diario}
-                className={cn(
-                  d.status_revisao === "rejeitado" &&
-                    "border-destructive/30 bg-[var(--danger-soft)]/20"
-                )}
+  return (
+    <>
+      <div className="card">
+        <div className="card-head">
+          <h3>
+            <Icon name="book" />
+            Diários de obra · {diarios.length}
+          </h3>
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            {pendentes > 0 ? (
+              <span
+                className="badge badge-warning"
+                style={{ fontSize: 11 }}
               >
-                <CardContent className="space-y-2 py-4">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="mono text-[13.5px] font-semibold tabular-nums text-foreground">
+                {pendentes} pendente{pendentes !== 1 ? "s" : ""} de revisão
+              </span>
+            ) : null}
+            <button
+              type="button"
+              className="btn btn-primary btn-sm"
+              onClick={() =>
+                router.push(`/obras/${obraId}/diarios/novo`)
+              }
+            >
+              <Icon name="plus" />
+              Novo diário
+            </button>
+          </div>
+        </div>
+
+        {isLoading ? (
+          <div
+            style={{
+              padding: "60px 24px",
+              textAlign: "center",
+              color: "var(--ink-muted)",
+              fontSize: 13.5,
+            }}
+          >
+            Carregando…
+          </div>
+        ) : diarios.length === 0 ? (
+          <div
+            style={{
+              padding: "60px 24px",
+              textAlign: "center",
+              color: "var(--ink-muted)",
+              fontSize: 13.5,
+            }}
+          >
+            Nenhum diário registrado.
+          </div>
+        ) : (
+          <div style={{ padding: 12 }}>
+            {diarios.map((d) => {
+              const rm = REVISAO_META[d.status_revisao] ?? REVISAO_META.pendente
+              const om = ORIGEM_META[d.origem] ?? ORIGEM_META.manual
+              const isReject = d.status_revisao === "rejeitado"
+              return (
+                <div
+                  key={d.id_diario}
+                  style={{
+                    padding: "12px 14px",
+                    border: "1px solid var(--line)",
+                    borderRadius: 8,
+                    marginBottom: 8,
+                    background: isReject ? "var(--danger-soft)" : "var(--white)",
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      gap: 12,
+                      flexWrap: "wrap",
+                    }}
+                  >
+                    <div
+                      style={{ display: "flex", gap: 8, alignItems: "center" }}
+                    >
+                      <span
+                        className="mono"
+                        style={{
+                          fontSize: 13,
+                          fontWeight: 600,
+                          color: "var(--ink)",
+                        }}
+                      >
                         {formatDate(d.data)}
                       </span>
-                      <CategoryChip tone={ORIGEM_TONE[d.origem] ?? "neutral"}>
-                        {origemMeta?.label ?? d.origem}
-                      </CategoryChip>
-                      <CategoryChip
-                        tone={REVISAO_TONE[d.status_revisao] ?? "neutral"}
-                      >
-                        {revisaoMeta?.label ?? d.status_revisao}
-                      </CategoryChip>
+                      <span className={"badge " + om.cls}>{om.label}</span>
+                      <span className={"badge dot " + rm.cls}>{rm.label}</span>
                     </div>
-                    {role === "diretor" && d.status_revisao === "pendente" ? (
-                      <div className="flex gap-1">
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          className="text-[var(--success-ink)]"
+                    {role === "diretor" &&
+                    d.status_revisao === "pendente" ? (
+                      <div style={{ display: "flex", gap: 4 }}>
+                        <button
+                          type="button"
+                          className="btn btn-secondary btn-sm"
                           onClick={() =>
                             setConfirmAction({
                               id: d.id_diario,
                               status: "aprovado",
                             })
                           }
-                          aria-label="Aprovar"
                         >
-                          <Check />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          className="text-destructive"
+                          <Icon name="check" />
+                          Aprovar
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-ghost btn-sm"
+                          style={{ color: "var(--danger-ink)" }}
                           onClick={() =>
                             setConfirmAction({
                               id: d.id_diario,
                               status: "rejeitado",
                             })
                           }
-                          aria-label="Rejeitar"
                         >
-                          <X />
-                        </Button>
+                          <Icon name="x" />
+                          Rejeitar
+                        </button>
                       </div>
                     ) : null}
                   </div>
-                  <p className="text-[13px] text-muted-foreground">
-                    {d.conteudo ? truncate(d.conteudo, 240) : "Sem conteúdo"}
+                  <p
+                    style={{
+                      marginTop: 8,
+                      fontSize: 12.5,
+                      color: "var(--ink-muted)",
+                      lineHeight: 1.5,
+                    }}
+                  >
+                    {d.conteudo ? truncate(d.conteudo, 280) : "Sem conteúdo"}
                   </p>
-                </CardContent>
-              </Card>
-            )
-          })}
-        </div>
-      )}
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </div>
 
       <ConfirmDialog
         open={!!confirmAction}
@@ -228,6 +255,6 @@ export function DiariosTab({ obraId, role }: DiariosTabProps) {
           setConfirmAction(null)
         }}
       />
-    </div>
+    </>
   )
 }

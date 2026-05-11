@@ -3,10 +3,9 @@
 import Link from "next/link"
 import { useEffect, useState } from "react"
 import { useParams } from "next/navigation"
-import { ArrowLeft } from "lucide-react"
 
 import { DiariosTab } from "@/components/obra-tabs/diarios-tab"
-import { PageHeader } from "@/components/shared/page-header"
+import { Icon } from "@/components/granum/icon"
 import { useUser } from "@/lib/hooks/use-user"
 import { createClient } from "@/lib/supabase/client"
 
@@ -29,24 +28,28 @@ export default function DiariosPage() {
   }, [obraId])
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-2 text-[12.5px] text-muted-foreground">
-        <Link
-          href={`/obras/${obraId}`}
-          className="inline-flex items-center gap-1 hover:text-foreground"
-        >
-          <ArrowLeft className="size-3.5" />
-          {obraNome || "Obra"}
-        </Link>
+    <>
+      <div className="page-head">
+        <div className="page-head-top">
+          <div className="page-head-title">
+            <div className="obra-id">
+              <Link
+                href={`/obras/${obraId}`}
+                style={{ color: "inherit", display: "inline-flex", gap: 4, alignItems: "center" }}
+              >
+                <Icon name="chevronLeft" style={{ width: 12, height: 12 }} />
+                {obraNome || "Obra"}
+              </Link>
+              {" · Diários"}
+            </div>
+            <h1>Diários de obra</h1>
+            <div className="subtitle">
+              Registros diários de acompanhamento da obra
+            </div>
+          </div>
+        </div>
       </div>
-
-      <PageHeader
-        eyebrow="Obra · Acompanhamento diário"
-        title="Diários de obra"
-        subtitle={obraNome}
-      />
-
       <DiariosTab obraId={obraId} role={role} />
-    </div>
+    </>
   )
 }

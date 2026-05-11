@@ -1,12 +1,10 @@
 "use client"
 
 import { useCallback, useEffect, useState } from "react"
-import { ExternalLink, FileText, Plus } from "lucide-react"
 import { toast } from "sonner"
 
-import { CategoryChip } from "@/components/shared/category-chip"
+import { Icon } from "@/components/granum/icon"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
 import {
   Dialog,
   DialogContent,
@@ -34,21 +32,17 @@ interface Documento {
   data_criacao: string
 }
 
-interface DocumentosTabProps {
-  obraId: number
+const TIPO_COLORS: Record<string, { bg: string; fg: string }> = {
+  projeto: { bg: "var(--info-soft)", fg: "var(--info-ink)" },
+  foto: {
+    bg: "color-mix(in oklab, var(--primary) 14%, var(--surface-muted))",
+    fg: "var(--primary)",
+  },
+  transcricao: { bg: "var(--warning-soft)", fg: "var(--warning-ink)" },
+  contrato: { bg: "var(--success-soft)", fg: "var(--success-ink)" },
 }
 
-const TIPO_TONE: Record<
-  string,
-  "primary" | "info" | "warning" | "success" | "neutral"
-> = {
-  projeto: "info",
-  foto: "primary",
-  transcricao: "warning",
-  contrato: "success",
-}
-
-export function DocumentosTab({ obraId }: DocumentosTabProps) {
+export function DocumentosTab({ obraId }: { obraId: number }) {
   const [docs, setDocs] = useState<Documento[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [formOpen, setFormOpen] = useState(false)
@@ -75,7 +69,7 @@ export function DocumentosTab({ obraId }: DocumentosTabProps) {
 
   async function handleAdd() {
     if (!nome.trim()) {
-      toast.error("Nome é obrigatório")
+      toast.error("Nome obrigatório")
       return
     }
     setSaving(true)
@@ -100,93 +94,115 @@ export function DocumentosTab({ obraId }: DocumentosTabProps) {
   }
 
   return (
-    <div className="space-y-4">
-      <Card>
-        <CardContent className="flex items-center justify-between py-4">
-          <div>
-            <h3 className="text-[15px] font-semibold text-foreground">
-              Documentos
-            </h3>
-            <p className="text-[12px] text-muted-foreground">
-              {docs.length} documento{docs.length === 1 ? "" : "s"}
-              {" · "}armazenados no SharePoint
-            </p>
-          </div>
-          <Button size="sm" onClick={() => setFormOpen(true)}>
-            <Plus data-icon="inline-start" />
+    <>
+      <div className="card">
+        <div className="card-head">
+          <h3>
+            <Icon name="folder" />
+            Documentos · {docs.length}
+          </h3>
+          <button
+            type="button"
+            className="btn btn-primary btn-sm"
+            onClick={() => setFormOpen(true)}
+          >
+            <Icon name="plus" />
             Adicionar
-          </Button>
-        </CardContent>
-      </Card>
-
-      {isLoading ? (
-        <Card>
-          <CardContent className="py-12 text-center text-sm text-muted-foreground">
-            Carregando documentos…
-          </CardContent>
-        </Card>
-      ) : docs.length === 0 ? (
-        <Card>
-          <CardContent className="flex flex-col items-center gap-3 py-16 text-center">
-            <FileText className="size-8 text-muted-foreground/60" />
-            <p className="text-sm text-muted-foreground">
-              Nenhum documento ainda.
-            </p>
-          </CardContent>
-        </Card>
-      ) : (
-        <Card>
-          <CardContent className="p-0">
-            <div className="divide-y divide-border">
-              {docs.map((d) => {
-                const tipoMeta = DOCUMENTO_TIPO[
-                  d.tipo as keyof typeof DOCUMENTO_TIPO
-                ] as { label: string } | undefined
-                return (
-                  <div
-                    key={d.id_documento}
-                    className="flex items-center justify-between gap-4 px-5 py-3 hover:bg-muted/30"
-                  >
-                    <div className="flex min-w-0 items-center gap-3">
-                      <span className="inline-flex size-9 shrink-0 items-center justify-center rounded-md bg-accent text-primary">
-                        <FileText className="size-4" />
-                      </span>
-                      <div className="min-w-0">
-                        <div className="truncate text-[13.5px] font-medium text-foreground">
-                          {d.nome}
-                        </div>
-                        <div className="text-[11.5px] text-muted-foreground tabular-nums">
-                          {formatDateTime(d.data_criacao)}
-                        </div>
-                      </div>
-                    </div>
-                    <div className="flex shrink-0 items-center gap-2">
-                      <CategoryChip tone={TIPO_TONE[d.tipo] ?? "neutral"}>
-                        {tipoMeta?.label ?? d.tipo}
-                      </CategoryChip>
-                      {d.url_sharepoint ? (
-                        <a
-                          href={d.url_sharepoint}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                        >
-                          <Button
-                            variant="ghost"
-                            size="icon-sm"
-                            aria-label="Abrir no SharePoint"
-                          >
-                            <ExternalLink />
-                          </Button>
-                        </a>
-                      ) : null}
+          </button>
+        </div>
+        {isLoading ? (
+          <div
+            style={{
+              padding: "60px 24px",
+              textAlign: "center",
+              color: "var(--ink-muted)",
+              fontSize: 13.5,
+            }}
+          >
+            Carregando…
+          </div>
+        ) : docs.length === 0 ? (
+          <div
+            style={{
+              padding: "60px 24px",
+              textAlign: "center",
+              color: "var(--ink-muted)",
+              fontSize: 13.5,
+            }}
+          >
+            Nenhum documento. Adicione o primeiro.
+          </div>
+        ) : (
+          <div className="list-table">
+            <div className="list-thead">
+              <div>Documento</div>
+              <div>Tipo</div>
+              <div>Data</div>
+              <div></div>
+            </div>
+            {docs.map((d) => {
+              const meta = DOCUMENTO_TIPO[
+                d.tipo as keyof typeof DOCUMENTO_TIPO
+              ] as { label: string } | undefined
+              const tipoColor = TIPO_COLORS[d.tipo] ?? {
+                bg: "var(--surface-muted)",
+                fg: "var(--ink-muted)",
+              }
+              return (
+                <div
+                  className="list-row2"
+                  key={d.id_documento}
+                  style={{
+                    gridTemplateColumns: "minmax(280px, 2fr) 140px 160px 40px",
+                  }}
+                >
+                  <div className="list-cell-name">
+                    <span
+                      className="lanc-icon"
+                      style={{
+                        background: "var(--surface-muted)",
+                        color: "var(--ink-muted)",
+                      }}
+                    >
+                      <Icon name="fileText" />
+                    </span>
+                    <div className="list-name-block">
+                      <div className="nm">{d.nome}</div>
                     </div>
                   </div>
-                )
-              })}
-            </div>
-          </CardContent>
-        </Card>
-      )}
+                  <div>
+                    <span
+                      className="tipo-tag"
+                      style={{
+                        background: tipoColor.bg,
+                        color: tipoColor.fg,
+                        fontSize: 11,
+                        fontWeight: 500,
+                      }}
+                    >
+                      {meta?.label ?? d.tipo}
+                    </span>
+                  </div>
+                  <div className="em mono">{formatDateTime(d.data_criacao)}</div>
+                  <div className="list-cell-actions">
+                    {d.url_sharepoint ? (
+                      <a
+                        href={d.url_sharepoint}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="icon-btn"
+                        title="Abrir no SharePoint"
+                      >
+                        <Icon name="external" />
+                      </a>
+                    ) : null}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </div>
 
       <Dialog open={formOpen} onOpenChange={setFormOpen}>
         <DialogContent>
@@ -236,6 +252,6 @@ export function DocumentosTab({ obraId }: DocumentosTabProps) {
           </div>
         </DialogContent>
       </Dialog>
-    </div>
+    </>
   )
 }
