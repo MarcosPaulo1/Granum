@@ -651,3 +651,53 @@
 }
 .df-bars-h .row .delta.pos { color: var(--success-ink); }
 .df-bars-h .row .delta.neg { color: var(--danger-ink); }
+
+/* ───────── Bars horizontais (top fornecedores) ───────── */
+.df-bars-h {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 4px 0;
+}
+.df-bar-h {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.df-bar-h-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+}
+.df-bar-h-head .nm {
+  color: var(--ink);
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.df-bar-h-head .vals {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.df-bar-h-track {
+  position: relative;
+  height: 10px;
+  border-radius: 4px;
+  background: var(--surface-muted);
+  overflow: hidden;
+}
+.df-bar-h-track .plan,
+.df-bar-h-track .real {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  border-radius: 4px;
+}
+.df-bar-h-track .plan { z-index: 1; }
+.df-bar-h-track .real { z-index: 2; }
