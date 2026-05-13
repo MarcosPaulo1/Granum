@@ -63,6 +63,13 @@ const NAV_GROUPS: NavGroup[] = [
         roles: ALL_ROLES,
       },
       {
+        id: "documentos",
+        label: "Documentos",
+        icon: "folder",
+        href: "/documentos",
+        roles: ALL_ROLES,
+      },
+      {
         id: "check-tarefas",
         label: "Check de tarefas",
         icon: "clipboard",
