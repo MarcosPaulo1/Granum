@@ -884,16 +884,16 @@ export default function DashboardGeralPage() {
 
       {/* Atalhos rápidos */}
       <div className="quick-actions">
-        <Link href="/obras" className="quick-action">
+        <Link href="/diarios" className="quick-action">
           <div className="quick-action-icon">
             <Icon name="fileText" />
           </div>
           <div className="quick-action-text">
-            <div className="ttl">Novo diário de obra</div>
-            <div className="sub">Registrar o dia</div>
+            <div className="ttl">Diários de obra</div>
+            <div className="sub">Histórico completo</div>
           </div>
         </Link>
-        <Link href="/financeiro/lancamentos" className="quick-action">
+        <Link href="/financeiro/lancamentos/novo" className="quick-action">
           <div className="quick-action-icon">
             <Icon name="dollar" />
           </div>
@@ -902,16 +902,16 @@ export default function DashboardGeralPage() {
             <div className="sub">NF-e ou boleto</div>
           </div>
         </Link>
-        <Link href="/dashboards/alocacao" className="quick-action">
+        <Link href="/check-tarefas" className="quick-action">
           <div className="quick-action-icon">
-            <Icon name="users" />
+            <Icon name="clipboard" />
           </div>
           <div className="quick-action-text">
-            <div className="ttl">Escala da semana</div>
-            <div className="sub">Alocar trabalhadores</div>
+            <div className="ttl">Check de tarefas</div>
+            <div className="sub">Atualizar % no campo</div>
           </div>
         </Link>
-        <Link href="/obras" className="quick-action">
+        <Link href="/obras/nova" className="quick-action">
           <div className="quick-action-icon">
             <Icon name="plus" />
           </div>

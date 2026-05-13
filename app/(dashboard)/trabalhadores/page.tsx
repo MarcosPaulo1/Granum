@@ -3,6 +3,7 @@
 // Port literal de granum-design/trabalhadores-app.jsx + Trabalhadores.html
 
 import { useCallback, useEffect, useMemo, useState } from "react"
+import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { endOfWeek, format, startOfWeek } from "date-fns"
 import { toast } from "sonner"
@@ -282,10 +283,10 @@ export default function TrabalhadoresPage() {
             </div>
           </div>
           <div className="page-head-actions">
-            <button className="btn btn-ghost" type="button" disabled>
-              <Icon name="upload" />
-              Importar
-            </button>
+            <Link href="/trabalhadores/contratos" className="btn btn-ghost">
+              <Icon name="briefcase" />
+              Contratos
+            </Link>
             <button className="btn btn-secondary" type="button" disabled>
               <Icon name="download" />
               Exportar
