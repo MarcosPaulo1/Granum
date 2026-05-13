@@ -53,6 +53,25 @@ const NAV_GROUPS: NavGroup[] = [
     ],
   },
   {
+    label: "Operacional",
+    items: [
+      {
+        id: "diarios",
+        label: "Diários",
+        icon: "book",
+        href: "/diarios",
+        roles: ALL_ROLES,
+      },
+      {
+        id: "check-tarefas",
+        label: "Check de tarefas",
+        icon: "clipboard",
+        href: "/check-tarefas",
+        roles: ["diretor", "engenheiro", "mestre_obra"],
+      },
+    ],
+  },
+  {
     label: "Cadastros",
     items: [
       {
